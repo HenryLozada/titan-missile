@@ -10,7 +10,7 @@ public sealed class GameLibraryTests : IDisposable
     {
         string p = Path.Combine(_root, rel);
         Directory.CreateDirectory(Path.GetDirectoryName(p)!);
-        if (!rel.EndsWith('\')) File.WriteAllBytes(p, new byte[bytes]);
+        File.WriteAllBytes(p, new byte[bytes]);
         return p;
     }
 
