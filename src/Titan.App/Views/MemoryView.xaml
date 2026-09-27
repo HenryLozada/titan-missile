@@ -83,9 +83,9 @@
                                   FocusVisualPrimaryBrush="{StaticResource Gold}" FocusVisualPrimaryThickness="2" />
                     </StackPanel>
                     <TextBlock Grid.Row="1" Style="{StaticResource Label}" FontSize="12" CharacterSpacing="0" TextWrapping="Wrap" LineHeight="20"
-                               Text="Purga la caché solo cuando de verdad falta memoria. Nada de purgas a ciegas." />
+                               Text="Purga la caché solo cuando de verdad falta memoria. Nada de purgas a ciegas. Durante un BOOST el gobernador toma el relevo y limpia sin tocar la caché del juego." />
                     <StackPanel Grid.Row="2" Spacing="12">
-                        <Grid><TextBlock Text="Umbral de memoria libre" Style="{StaticResource Label}" FontSize="11" CharacterSpacing="0" /><TextBlock Text="1 GB" Style="{StaticResource Label}" Foreground="{StaticResource Ink}" HorizontalAlignment="Right" /></Grid>
+                        <Grid><TextBlock Text="Umbral de memoria libre" Style="{StaticResource Label}" FontSize="11" CharacterSpacing="0" /><TextBlock x:Name="ThresholdValue" Text="1 GB" Style="{StaticResource Label}" Foreground="{StaticResource Ink}" HorizontalAlignment="Right" /></Grid>
                         <Grid><TextBlock Text="Caché mínima para purgar" Style="{StaticResource Label}" FontSize="11" CharacterSpacing="0" /><TextBlock Text="1 GB" Style="{StaticResource Label}" Foreground="{StaticResource Ink}" HorizontalAlignment="Right" /></Grid>
                         <Grid><TextBlock Text="Intervalo mínimo" Style="{StaticResource Label}" FontSize="11" CharacterSpacing="0" /><TextBlock Text="30 s" Style="{StaticResource Label}" Foreground="{StaticResource Ink}" HorizontalAlignment="Right" /></Grid>
                     </StackPanel>

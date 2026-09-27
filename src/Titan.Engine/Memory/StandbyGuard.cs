@@ -8,6 +8,13 @@ public sealed record StandbyGuardOptions
     public ulong StandbyAboveBytes { get; init; } = 1024UL * 1024 * 1024;    // 1 GB
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan Cooldown { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Outside a game: purge when free memory drops below 1/8 of RAM (1–4 GB) and there is ≥1 GB of cache.</summary>
+    public static StandbyGuardOptions ForRam(ulong totalBytes)
+    {
+        const ulong gb = 1024UL * 1024 * 1024;
+        return new() { FreeBelowBytes = Math.Clamp(totalBytes / 8, gb, 4 * gb) };
+    }
 }
 
 /// <summary>
@@ -24,9 +31,10 @@ public sealed class StandbyGuard
 
     public event Action<PurgeResult>? Purged;
     public int PurgeCount { get; private set; }
+    public StandbyGuardOptions Options => _options;
 
     public StandbyGuard(StandbyGuardOptions? options = null)
-        : this(options ?? new(), MemoryLists.Read, () => MemoryPurger.Execute(PurgeOps.Boost), () => DateTimeOffset.UtcNow) { }
+        : this(options ?? StandbyGuardOptions.ForRam(MemoryLists.Read().TotalBytes), MemoryLists.Read, () => MemoryPurger.Execute(PurgeOps.Boost), () => DateTimeOffset.UtcNow) { }
 
     internal StandbyGuard(StandbyGuardOptions options, Func<MemorySnapshot> read, Func<PurgeResult> purge, Func<DateTimeOffset> now)
     {

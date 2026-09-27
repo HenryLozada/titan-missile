@@ -18,6 +18,10 @@ namespace Titan.Engine.Session;
 [JsonDerivedType(typeof(EcoQoSApplied), "ecoQoS")]
 [JsonDerivedType(typeof(CpuSetsChanged), "cpuSets")]
 [JsonDerivedType(typeof(RegistryChanged), "registry")]
+[JsonDerivedType(typeof(HighQoSApplied), "highQoS")]
+[JsonDerivedType(typeof(MemoryPriorityChanged), "memoryPriority")]
+[JsonDerivedType(typeof(IoPriorityChanged), "ioPriority")]
+[JsonDerivedType(typeof(GpuPriorityChanged), "gpuPriority")]
 public abstract record JournalEntry
 {
     public abstract string Describe();
@@ -46,6 +50,18 @@ public sealed record CpuSetsChanged(int Pid, long CreationTime, string Name, uin
 
 public sealed record RegistryChanged(DwordValue Previous) : JournalEntry
 { public override string Describe() => $"Registro {Previous.Name}"; }
+
+public sealed record HighQoSApplied(int Pid, long CreationTime, string Name) : JournalEntry
+{ public override string Describe() => $"QoS alto {Name}"; }
+
+public sealed record MemoryPriorityChanged(int Pid, long CreationTime, string Name, uint Previous) : JournalEntry
+{ public override string Describe() => $"Prioridad de memoria {Name} → {Previous}"; }
+
+public sealed record IoPriorityChanged(int Pid, long CreationTime, string Name, int Previous) : JournalEntry
+{ public override string Describe() => $"Prioridad de E/S {Name} → {Previous}"; }
+
+public sealed record GpuPriorityChanged(int Pid, long CreationTime, string Name, int Previous) : JournalEntry
+{ public override string Describe() => $"Prioridad de GPU {Name} → {Previous}"; }
 
 public sealed record JournalDocument(Guid SessionId, DateTimeOffset StartedAt, int? GamePid, string? GameName, List<JournalEntry> Entries);
 

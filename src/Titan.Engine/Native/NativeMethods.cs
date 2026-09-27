@@ -27,6 +27,29 @@ internal static unsafe partial class NativeMethods
     [LibraryImport("ntdll.dll")]
     public static partial uint RtlNtStatusToDosError(int status);
 
+    public const int ProcessIoPriority = 33;
+
+    [LibraryImport("ntdll.dll")]
+    public static partial int NtSetInformationProcess(SafeProcessHandle process, int infoClass, void* info, int length);
+
+    [LibraryImport("ntdll.dll")]
+    public static partial int NtQueryInformationProcess(SafeProcessHandle process, int infoClass, void* info, int length, out int returnLength);
+
+    /// <summary>Resolution in 100 ns units. Released automatically when the requesting process exits.</summary>
+    [LibraryImport("ntdll.dll")]
+    public static partial int NtSetTimerResolution(uint desired, [MarshalAs(UnmanagedType.U1)] bool set, out uint current);
+
+    /// <summary>minimum = coarsest (e.g. 15.625 ms), maximum = finest (e.g. 0.5 ms).</summary>
+    [LibraryImport("ntdll.dll")]
+    public static partial int NtQueryTimerResolution(out uint minimum, out uint maximum, out uint current);
+
+    // ---------------------------------------------------------------- gdi32: GPU scheduling priority (D3DKMT)
+    [LibraryImport("gdi32.dll")]
+    public static partial int D3DKMTSetProcessSchedulingPriorityClass(SafeProcessHandle process, int priority);
+
+    [LibraryImport("gdi32.dll")]
+    public static partial int D3DKMTGetProcessSchedulingPriorityClass(SafeProcessHandle process, out int priority);
+
     // ---------------------------------------------------------------- kernel32: processes
     public const uint PROCESS_TERMINATE = 0x0001;
     public const uint PROCESS_SET_QUOTA = 0x0100;
@@ -65,9 +88,11 @@ internal static unsafe partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool EmptyWorkingSet(SafeProcessHandle process);
 
+    public const int ProcessMemoryPriority = 0;
     public const int ProcessPowerThrottling = 4;
     public const uint PROCESS_POWER_THROTTLING_CURRENT_VERSION = 1;
     public const uint PROCESS_POWER_THROTTLING_EXECUTION_SPEED = 0x1;
+    public const uint PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION = 0x4;
 
     [StructLayout(LayoutKind.Sequential)]
     public struct PROCESS_POWER_THROTTLING_STATE
@@ -191,6 +216,12 @@ internal static unsafe partial class NativeMethods
 
     [LibraryImport("powrprof.dll")]
     public static partial uint PowerDuplicateScheme(nint rootPowerKey, in Guid sourceScheme, Guid** destinationScheme);
+
+    [LibraryImport("powrprof.dll")]
+    public static partial uint PowerWriteACValueIndex(nint rootPowerKey, in Guid scheme, in Guid subGroup, in Guid setting, uint value);
+
+    [LibraryImport("powrprof.dll")]
+    public static partial uint PowerWriteDCValueIndex(nint rootPowerKey, in Guid scheme, in Guid subGroup, in Guid setting, uint value);
 
     [LibraryImport("powrprof.dll")]
     public static partial uint PowerWriteFriendlyName(nint rootPowerKey, in Guid scheme, Guid* subGroup, Guid* setting, byte* buffer, uint bufferSize);

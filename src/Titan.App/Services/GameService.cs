@@ -13,6 +13,9 @@ public sealed record AppSettings
 {
     public bool Sound { get; set; } = true;
     public bool MinimizeOnAutoBoost { get; set; } = true;
+    public Titan.Engine.Memory.BoostLevel Level { get; set; } = Titan.Engine.Memory.BoostLevel.Max;
+    /// <summary>Idle standby guardian (outside games). On by default: that's the "keeps cleaning" promise.</summary>
+    public bool Guardian { get; set; } = true;
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true, UseStringEnumConverter = true)]

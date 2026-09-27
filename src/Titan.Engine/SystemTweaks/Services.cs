@@ -10,6 +10,12 @@ public static class Services
 {
     public static readonly IReadOnlyList<string> DefaultPause = ["SysMain", "WSearch", "DiagTrack", "Spooler", "MapsBroker"];
 
+    /// <summary>
+    /// LÍMITE adds what downloads, scans and reports in the background mid-game: Windows Update, BITS,
+    /// Delivery Optimization, error reporting and the compatibility assistant. All restart on demand anyway.
+    /// </summary>
+    public static readonly IReadOnlyList<string> MaxPause = [.. DefaultPause, "wuauserv", "BITS", "DoSvc", "WerSvc", "PcaSvc"];
+
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
 
     public static bool IsRunning(string name)
@@ -20,6 +26,17 @@ public static class Services
             return sc.Status == ServiceControllerStatus.Running;
         }
         catch (InvalidOperationException) { return false; } // not installed
+    }
+
+    /// <summary>Running and stoppable: services Windows won't let us stop are skipped instead of reported as errors.</summary>
+    public static bool CanPause(string name)
+    {
+        try
+        {
+            using var sc = new ServiceController(name);
+            return sc.Status == ServiceControllerStatus.Running && sc.CanStop;
+        }
+        catch (InvalidOperationException) { return false; }
     }
 
     public static void Stop(string name)

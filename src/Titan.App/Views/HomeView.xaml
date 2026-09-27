@@ -46,6 +46,22 @@
             </Button>
             <TextBlock x:Name="Hint" Style="{StaticResource Label}" Foreground="{StaticResource Ink}" FontSize="10" CharacterSpacing="300" HorizontalAlignment="Center" />
             <StackPanel x:Name="Segments" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,6,0,0" />
+            <StackPanel Orientation="Horizontal" Spacing="18" HorizontalAlignment="Center" Margin="0,14,0,0">
+                <Button x:Name="BalancedButton" Style="{StaticResource Tab}" Click="Level_Click" Tag="0"
+                        ToolTipService.ToolTip="Conservador: servicios básicos y purgas solo con presión real">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <Rectangle x:Name="BalancedDot" Width="5" Height="5" Fill="{StaticResource Gold}" VerticalAlignment="Center" />
+                        <TextBlock Text="EQUILIBRADO" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="MaxButton" Style="{StaticResource Tab}" Click="Level_Click" Tag="1"
+                        ToolTipService.ToolTip="Todo lo reversible que de verdad ayuda, y memoria limpia toda la partida">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <Rectangle x:Name="MaxDot" Width="5" Height="5" Fill="{StaticResource Gold}" VerticalAlignment="Center" />
+                        <TextBlock Text="LÍMITE" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </StackPanel>
 
         <!-- Live readouts -->

@@ -53,15 +53,27 @@ public sealed class ProcessPolicy
         "OneDrive.exe", "Dropbox.exe", "GoogleDriveFS.exe", "MEGAsync.exe", "Widgets.exe", "WidgetService.exe",
         "PhoneExperienceHost.exe", "YourPhone.exe", "Copilot.exe",
         "AdobeCollabSync.exe", "Creative Cloud.exe", "CCXProcess.exe", "AdobeIPCBroker.exe",
-        "SearchApp.exe", "Cortana.exe",
+        "SearchApp.exe", "Cortana.exe", "OneDriveStandaloneUpdater.exe", "CrossDeviceService.exe",
+        "HxTsr.exe", "HxOutlook.exe", "SkypeApp.exe", "SkypeBackgroundHost.exe", "msteamsupdate.exe",
     ];
 
     public static readonly IReadOnlyList<string> DefaultThrottle =
     [
         "chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "opera_gx.exe", "vivaldi.exe",
         "Discord.exe", "Spotify.exe", "Slack.exe", "ms-teams.exe", "Teams.exe", "Telegram.exe", "WhatsApp.exe",
-        "EpicGamesLauncher.exe", "Code.exe", "Notion.exe",
+        "EpicGamesLauncher.exe", "Code.exe", "Notion.exe", "Zoom.exe", "ts3client_win64.exe", "TeamSpeak.exe",
+        "Overwolf.exe", "wallpaper32.exe", "wallpaper64.exe",
     ];
+
+    /// <summary>
+    /// Voice and music: throttled like the rest, but their memory is never trimmed or demoted —
+    /// a re-fault in the middle of a call is an audible glitch.
+    /// </summary>
+    public static readonly IReadOnlySet<string> Responsive = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "Discord.exe", "Spotify.exe", "ms-teams.exe", "Teams.exe", "Slack.exe", "Telegram.exe", "WhatsApp.exe",
+        "Zoom.exe", "ts3client_win64.exe", "TeamSpeak.exe",
+    };
 
     private readonly HashSet<string> _freeze;
     private readonly HashSet<string> _throttle;
@@ -80,6 +92,20 @@ public sealed class ProcessPolicy
         if (_freeze.Contains(p.Name)) return ProcessAction.Freeze;
         if (_throttle.Contains(p.Name)) return ProcessAction.Throttle;
         return ProcessAction.None;
+    }
+
+    /// <summary>Crash reporters, uninstallers and redistributables living in a game folder are not the game.</summary>
+    public static bool IsGameHelper(string exe) =>
+        exe.Contains("crash", StringComparison.OrdinalIgnoreCase) || exe.Contains("report", StringComparison.OrdinalIgnoreCase)
+        || exe.StartsWith("unins", StringComparison.OrdinalIgnoreCase) || exe.Contains("redist", StringComparison.OrdinalIgnoreCase)
+        || exe.Contains("setup", StringComparison.OrdinalIgnoreCase) || exe.Equals("conhost.exe", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>True if <paramref name="path"/> is inside <paramref name="dir"/> (not merely sharing a prefix).</summary>
+    public static bool IsUnder(string? path, string dir)
+    {
+        if (path is null) return false;
+        string root = dir.Replace('/', '\\').TrimEnd('\\') + "\\";
+        return path.StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>The game, everything it spawned, and the chain of parents that launched it.</summary>

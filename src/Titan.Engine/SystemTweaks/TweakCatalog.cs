@@ -60,7 +60,7 @@ public sealed class TweakCatalog
             "Bajo · segundo plano", false, TweakKind.Registry,
             [new("HKLM", @"SOFTWARE\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry", 0)]),
         new("timerres", "Resolución de temporizador global",
-            "Windows 11 vuelve a respetar la resolución de temporizador pedida por el juego aunque esté en segundo plano. Avanzado.",
+            "Windows 11 vuelve a respetar la resolución de temporizador de forma global. Con esto activo, el BOOST fija 0,5 ms durante la partida. Avanzado.",
             "Variable · frametime", true, TweakKind.Registry,
             [new("HKLM", @"SYSTEM\CurrentControlSet\Control\Session Manager\kernel", "GlobalTimerResolutionRequests", 1)]),
         new("memcompression", "Sin compresión de memoria",

@@ -17,7 +17,9 @@ public sealed class EngineHost : IDisposable
     private readonly DispatcherQueueTimer _timer;
     private readonly BoostEngine _engine = new();
     private CancellationTokenSource? _guardCts;
+    private bool _guardBeforeBoost;
     private bool _busy;
+    private bool _aside;
 
     public bool IsElevated { get; } = Privileges.IsElevated;
     public MemorySnapshot? Memory { get; private set; }
@@ -28,9 +30,14 @@ public sealed class EngineHost : IDisposable
     public string PowerPlan { get; private set; } = "";
     public bool Boosted => _engine.Journal.HasOpenSession;
     public bool GuardOn => _guardCts is not null;
+    public StandbyGuardOptions? GuardOptions { get; private set; }
+    /// <summary>Live work of the in-game governor; null outside a boost.</summary>
+    public GovernorStats? Governor { get; private set; }
 
     public event Action? Updated;
     public event Action<PurgeResult>? GuardPurged;
+    public event Action<bool>? GuardToggled;
+    public event Action<GovernorStats>? GovernorChanged;
 
     public EngineHost(DispatcherQueue ui)
     {
@@ -76,25 +83,76 @@ public sealed class EngineHost : IDisposable
         });
     }
 
-    public Task<BoostReport> BoostAsync(IProgress<BoostProgress> progress, int? gamePid = null) =>
-        Task.Run(() => _engine.Engage(new BoostOptions { GamePid = gamePid }, progress));
+    /// <summary>Engages the boost, then hands over to the governor for the rest of the session.</summary>
+    public async Task<BoostReport> BoostAsync(IProgress<BoostProgress> progress, BoostLevel level, int? gamePid = null, string? gameDir = null)
+    {
+        // The governor owns memory during the session; the idle guardian would only fight it.
+        _guardBeforeBoost = GuardOn;
+        if (GuardOn) StopGuard();
+        var report = await Task.Run(() => _engine.Engage(new BoostOptions { GamePid = gamePid, GameDir = gameDir, Level = level }, progress));
+        Governor = _engine.Stats;
+        _engine.StartGovernor(st => _ui.TryEnqueue(() => { Governor = st; GovernorChanged?.Invoke(st); }));
+        return report;
+    }
 
     public TweakCatalog Tweaks { get; } = new();
 
-    public Task<RestoreReport> RestoreAsync() => Task.Run(_engine.Restore);
+    public async Task<RestoreReport> RestoreAsync()
+    {
+        var r = await Task.Run(_engine.Restore);
+        AfterRestore();
+        return r;
+    }
 
-    public RestoreReport RestoreNow() => _engine.Restore();
+    public RestoreReport RestoreNow()
+    {
+        var r = _engine.Restore();
+        AfterRestore();
+        return r;
+    }
+
+    private void AfterRestore()
+    {
+        Governor = null;
+        StepAside(false);
+        if (_guardBeforeBoost) SetGuard(true);
+        _guardBeforeBoost = false;
+    }
+
+    /// <summary>
+    /// While the game has the screen, TITAN gets out of the way: its pages go back to Windows and the
+    /// readouts slow to one refresh every 5 s. The governor keeps running.
+    /// </summary>
+    public void StepAside(bool aside)
+    {
+        if (aside == _aside) return;
+        _aside = aside;
+        _timer.Interval = TimeSpan.FromSeconds(aside ? 5 : 1);
+        if (aside) Task.Run(() => { try { ProcessOps.TrimSelf(); } catch { } });
+    }
 
     public Task<PurgeResult> PurgeAsync(PurgeOps ops) => Task.Run(() => MemoryPurger.Execute(ops));
 
     public void SetGuard(bool on)
     {
+        if (Boosted) { _guardBeforeBoost = on; GuardToggled?.Invoke(on); return; }   // the governor owns memory until restore
         if (on == GuardOn) return;
-        if (!on) { _guardCts!.Cancel(); _guardCts = null; return; }
-        _guardCts = new CancellationTokenSource();
-        var guard = new StandbyGuard();
-        guard.Purged += r => _ui.TryEnqueue(() => GuardPurged?.Invoke(r));
-        _ = Task.Run(() => guard.RunAsync(_guardCts.Token));
+        if (!on) StopGuard();
+        else
+        {
+            _guardCts = new CancellationTokenSource();
+            var guard = new StandbyGuard();
+            GuardOptions = guard.Options;
+            guard.Purged += r => _ui.TryEnqueue(() => GuardPurged?.Invoke(r));
+            _ = Task.Run(() => guard.RunAsync(_guardCts.Token));
+        }
+        GuardToggled?.Invoke(on);
+    }
+
+    private void StopGuard()
+    {
+        _guardCts?.Cancel();
+        _guardCts = null;
     }
 
     public void Dispose()

@@ -55,7 +55,8 @@ int Help()
       titan purge [ops]            Limpieza estilo RAMMap (admin). Por defecto: Standby + Standby prioridad 0
                                      --all  --ws  --sys  --modified  --standby  --lowpri
       titan boost [--game X]       Activa el BOOST (admin). X = nombre (cs2.exe) o PID
-                                     --hold  mantiene el boost + guardián de Standby hasta ENTER y restaura
+                                     --hold  mantiene el boost + gobernador en vivo hasta ENTER y restaura
+                                     --equilibrado  nivel conservador (por defecto: LÍMITE)
                                      --no-power --no-services --no-freeze --no-throttle --no-mmcss --no-purge
       titan restore                Deshace la sesión abierta (también la que dejó un cierre inesperado)
       titan guard                  Guardián de Standby estilo ISLC hasta ENTER (admin)
@@ -169,6 +170,7 @@ async Task<int> Boost()
     var options = new BoostOptions
     {
         GamePid = ResolveGame(procs),
+        Level = Has("--equilibrado") ? BoostLevel.Balanced : BoostLevel.Max,
         PowerPlan = !Has("--no-power"),
         PauseServices = !Has("--no-services"),
         FreezeBackground = !Has("--no-freeze"),
@@ -179,8 +181,12 @@ async Task<int> Boost()
 
     var report = engine.Engage(options, new SyncProgress<BoostProgress>(p => Ui.Step(p.Step, p.Total, p.Label)));
 
-    Ui.Title($"BOOST activo en {report.Elapsed.TotalMilliseconds:0} ms");
+    Ui.Title($"BOOST {(report.Level == BoostLevel.Max ? "LÍMITE" : "EQUILIBRADO")} activo en {report.Elapsed.TotalMilliseconds:0} ms");
     if (report.GameName is not null) Ui.Row("Juego", report.GameName, accent: true);
+    if (report.GameBoosts.Count > 0) Ui.Row("Al juego", string.Join(", ", report.GameBoosts));
+    if (report.PowerSettings > 0) Ui.Row("Plan afinado", $"{report.PowerSettings} valores (sin aparcar núcleos, turbo agresivo, USB/PCIe despiertos)");
+    Ui.Row("Temporizador", report.TimerMs is double ms ? $"{ms:0.###} ms" : "sin cambios (en este Windows no llegaría al juego)");
+    if (report.Trimmed > 0) Ui.Row("Recortados", $"{report.Trimmed} procesos de fondo");
     if (report.PowerPlan is Guid plan) Ui.Row("Plan de energía", PowerPlans.FriendlyName(plan) ?? plan.ToString());
     if (report.CorePlan is not null) Ui.Row("Núcleos", report.CorePlan.Reason);
     Ui.Row("Servicios en pausa", report.ServicesPaused.Count == 0 ? "—" : string.Join(", ", report.ServicesPaused));
@@ -195,9 +201,14 @@ async Task<int> Boost()
         return 0;
     }
 
-    Ui.Dim("\nGuardián de Standby activo. Pulsa ENTER para terminar y restaurar…");
-    await RunGuardUntilEnter();
-    return Restore();
+    Ui.Dim("\nGobernador activo: memoria por niveles + procesos nuevos. Pulsa ENTER para terminar y restaurar…");
+    engine.StartGovernor(st => Ui.Dim($"  · {DateTime.Now:HH:mm:ss} {st.LastAction} (total +{st.FreedBytes / 1073741824.0:0.00} GB, {st.Purges} purgas, {st.Tamed} domados)"));
+    await Task.Run(Console.ReadLine);
+    var r = engine.Restore();
+    Ui.Title($"Restaurado en {r.Elapsed.TotalMilliseconds:0} ms");
+    Ui.Row("Cambios deshechos", r.Reverted.ToString(), accent: true);
+    foreach (var f in r.Failures) Ui.Warn(f);
+    return r.Failures.Count == 0 ? 0 : 4;
 }
 
 int Restore()

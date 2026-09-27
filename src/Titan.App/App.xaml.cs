@@ -12,6 +12,21 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+        // Anything that escapes goes to %AppData%\TITAN\crash.log, so a blank window is never a mystery.
+        UnhandledException += (_, e) => Log(e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Log(e.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) => { Log(e.Exception); e.SetObserved(); };
+    }
+
+    public static void Log(Exception? ex)
+    {
+        try
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TITAN");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "crash.log"), $"[{DateTimeOffset.Now:u}] {ex}\n\n");
+        }
+        catch { }
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -39,7 +54,15 @@ public partial class App : Application
             }
         }
 
-        MainWindow = new MainWindow();
-        MainWindow.Activate();
+        try
+        {
+            MainWindow = new MainWindow();
+            MainWindow.Activate();
+        }
+        catch (Exception ex)
+        {
+            Log(ex);
+            throw;
+        }
     }
 }

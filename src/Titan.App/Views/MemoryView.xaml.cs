@@ -36,6 +36,8 @@ public sealed partial class MemoryView : UserControl
         _host = host;
         host.Updated += Refresh;
         host.GuardPurged += r => Say($"Guardián: purga automática. +{Units.Gb((ulong)Math.Max(0, r.FreedBytes)):0.00} GB libres.");
+        host.GuardToggled += on => { _syncing = true; GuardToggle.IsChecked = on; _syncing = false; };
+        host.GovernorChanged += g => { if (g.LastAction is { } a) Say("Gobernador: " + a + "."); };
         Say(host.IsElevated ? "Lectura en vivo. Umbral vigilado." : "Solo lectura: sin permisos de administrador no puedo purgar.");
         Refresh();
     }
@@ -86,13 +88,17 @@ public sealed partial class MemoryView : UserControl
         _ => "Purga completada",
     };
 
+    private bool _syncing;
+
     private void Guard_Changed(object sender, RoutedEventArgs e)
     {
-        if (_host is null) return;
+        if (_host is null || _syncing) return;
         bool on = GuardToggle.IsChecked == true;
         if (on && !_host.IsElevated) { GuardToggle.IsChecked = false; Say("El guardián necesita permisos de administrador."); return; }
         _host.SetGuard(on);
-        Say(on ? "Guardián activo. Purgo solo si la memoria libre baja de 1 GB." : "Guardián en pausa.");
+        Say(!on ? "Guardián en pausa."
+            : _host.Boosted ? "Guardián armado: vuelve cuando termine el BOOST. Ahora manda el gobernador."
+            : $"Guardián activo. Purgo solo si la memoria libre baja de {ThresholdValue.Text}.");
     }
 
     private void Say(string text) => Voice.Text = "› " + text;
@@ -110,6 +116,7 @@ public sealed partial class MemoryView : UserControl
         ModifiedValue.Text = m.Detailed ? Units.GbText(m.ModifiedBytes) : "—";
         InUseValue.Text = Units.GbText(m.InUseBytes);
         RungNote.Text = $"1 PELDAÑO ≈ {gbPerRung:0.0} GB · {Rungs} PELDAÑOS";
+        ThresholdValue.Text = $"{Units.Gb(StandbyGuardOptions.ForRam(m.TotalBytes).FreeBelowBytes):0.#} GB";
     }
 
     public void Tick(float dt, double nowMs)

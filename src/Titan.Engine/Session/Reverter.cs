@@ -43,6 +43,18 @@ public sealed class SystemReverter : IChangeReverter
             case CpuSetsChanged e:
                 if (ProcessOps.IsAlive(new(e.Pid, e.CreationTime))) ProcessOps.SetDefaultCpuSets(e.Pid, e.Previous);
                 break;
+            case HighQoSApplied e:
+                if (ProcessOps.IsAlive(new(e.Pid, e.CreationTime))) ProcessOps.SetEcoQoS(e.Pid, false);
+                break;
+            case MemoryPriorityChanged e:
+                if (ProcessOps.IsAlive(new(e.Pid, e.CreationTime))) ProcessOps.SetMemoryPriority(e.Pid, e.Previous);
+                break;
+            case IoPriorityChanged e:
+                if (ProcessOps.IsAlive(new(e.Pid, e.CreationTime))) ProcessOps.SetIoPriority(e.Pid, e.Previous);
+                break;
+            case GpuPriorityChanged e:
+                if (ProcessOps.IsAlive(new(e.Pid, e.CreationTime))) ProcessOps.SetGpuPriority(e.Pid, e.Previous);
+                break;
             case RegistryChanged e:
                 if (!AllowedRegistry.Contains((e.Previous.Hive, e.Previous.Key, e.Previous.Name)))
                     throw new InvalidOperationException($"Valor de registro no permitido en el journal: {e.Previous.Key}\\{e.Previous.Name}");

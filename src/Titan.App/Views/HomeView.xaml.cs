@@ -15,10 +15,11 @@ public sealed partial class HomeView : UserControl
 {
     private enum Phase { Idle, Running, Done, Release }
 
-    private static readonly string[] StepNames = ["energía", "servicios", "prioridad del juego", "segundo plano", "planificador", "caché"];
+    private static readonly string[] StepNames = ["energía", "servicios", "el juego", "segundo plano", "planificador y temporizador", "memoria de fondo", "caché"];
+    private const int Steps = BoostEngine.Steps;
 
     private readonly EntityAnimator _anim = new();
-    private readonly Rectangle[] _segments = new Rectangle[6];
+    private readonly Rectangle[] _segments = new Rectangle[Steps];
     private readonly DispatcherTimer _typer = new() { Interval = TimeSpan.FromMilliseconds(18) };
     private ShaderSurface<EntityParams>? _surface;
     private EngineHost? _host;
@@ -40,10 +41,20 @@ public sealed partial class HomeView : UserControl
 
     public bool IsBoosted => _phase == Phase.Done;
 
+    /// <summary>EQUILIBRADO / LÍMITE. The window persists it.</summary>
+    public BoostLevel Level
+    {
+        get => _level;
+        set { _level = value; UpdateLevel(); }
+    }
+    private BoostLevel _level = BoostLevel.Max;
+    public event Action<BoostLevel>? LevelChanged;
+
     public HomeView()
     {
         InitializeComponent();
-        for (int i = 0; i < 6; i++)
+        UpdateLevel();
+        for (int i = 0; i < Steps; i++)
         {
             _segments[i] = new Rectangle { Width = 22, Height = 2 };
             Segments.Children.Add(_segments[i]);
@@ -66,6 +77,7 @@ public sealed partial class HomeView : UserControl
     {
         _host = host;
         host.Updated += Refresh;
+        host.GovernorChanged += _ => Refresh();
         Refresh();
     }
 
@@ -86,7 +98,7 @@ public sealed partial class HomeView : UserControl
 
     private EntityTargets Targets() => _phase switch
     {
-        Phase.Running => new(.5f, 0, _step / 6f, 2.4f, 1.8f, .45f, false),
+        Phase.Running => new(.5f, 0, _step / (float)Steps, 2.4f, 1.8f, .45f, false),
         Phase.Done => new(0, 1, 1, .3f, 1.2f, 1, false),
         Phase.Release => new(0, 0, 0, .45f, 1, .4f, false),
         _ => new(0, 0, 0, .16f, 1, .15f, true),
@@ -117,16 +129,35 @@ public sealed partial class HomeView : UserControl
     private void Entity_Click(object sender, RoutedEventArgs e) => ToggleBoost();
     private void Clean_Click(object sender, RoutedEventArgs e) => Clean();
 
+    private void Level_Click(object sender, RoutedEventArgs e)
+    {
+        if (_phase != Phase.Idle) { Say("El nivel se cambia en reposo. Libera primero."); return; }
+        Level = (string)((FrameworkElement)sender).Tag == "1" ? BoostLevel.Max : BoostLevel.Balanced;
+        Sound?.Play(Sfx.Tick);
+        LevelChanged?.Invoke(Level);
+        Say(Level == BoostLevel.Max
+            ? "Nivel LÍMITE. Todo lo reversible que mide mejor, y la memoria vigilada cada 2 segundos mientras juegas."
+            : "Nivel EQUILIBRADO. Lo esencial, y purgas solo cuando la memoria de verdad escasea.");
+    }
+
+    private void UpdateLevel()
+    {
+        BalancedDot.Visibility = _level == BoostLevel.Balanced ? Visibility.Visible : Visibility.Collapsed;
+        MaxDot.Visibility = _level == BoostLevel.Max ? Visibility.Visible : Visibility.Collapsed;
+        BalancedButton.Foreground = (Brush)Application.Current.Resources[_level == BoostLevel.Balanced ? "Ink" : "Ink2"];
+        MaxButton.Foreground = (Brush)Application.Current.Resources[_level == BoostLevel.Max ? "Ink" : "Ink2"];
+    }
+
     public void ToggleBoost()
     {
-        if (_phase == Phase.Idle) _ = Boost(null, null);
+        if (_phase == Phase.Idle) _ = Boost(null, null, null);
         else if (_phase == Phase.Done) _ = Release();
     }
 
     public void ReleaseIfBoosted() { if (_phase == Phase.Done) _ = Release(); }
 
     /// <summary>Auto-boost / JUGAR: boost with the game as target (priority + CPU sets for that process).</summary>
-    public Task BoostForGame(int pid, string name) => _phase == Phase.Idle ? Boost(pid, name) : Task.CompletedTask;
+    public Task BoostForGame(int pid, string name, string? dir) => _phase == Phase.Idle ? Boost(pid, name, dir) : Task.CompletedTask;
 
     public Task ReleaseAsync() => _phase == Phase.Done ? Release() : Task.CompletedTask;
 
@@ -137,7 +168,7 @@ public sealed partial class HomeView : UserControl
         return false;
     }
 
-    private async Task Boost(int? gamePid, string? gameName)
+    private async Task Boost(int? gamePid, string? gameName, string? gameDir)
     {
         if (_host is null || !RequireAdmin()) return;
         _phase = Phase.Running; _step = 0; _override = null; _gameName = gameName;
@@ -148,7 +179,7 @@ public sealed partial class HomeView : UserControl
         BoostReport report;
         try
         {
-            report = await _host.BoostAsync(progress, gamePid);
+            report = await _host.BoostAsync(progress, _level, gamePid, gameDir);
         }
         catch (Exception ex)
         {
@@ -162,8 +193,12 @@ public sealed partial class HomeView : UserControl
         Sound?.Play(Sfx.Boost);
         ScanRequested?.Invoke();
         double freed = report.Purge is null ? 0 : Math.Max(0, report.Purge.FreedBytes) / (1024.0 * 1024 * 1024);
-        _override = $"{freed:0.00} GB recuperados. {Count(report.Throttled)} procesos moderados, {Count(report.Frozen)} congelados. " +
-                    $"Ninguno terminado. {report.ServicesPaused.Count} servicios en pausa. Tócame para revertir.";
+        var parts = new List<string> { $"{freed:0.00} GB recuperados" };
+        if (report.GameBoosts.Count > 0) parts.Add("juego con " + string.Join(", ", report.GameBoosts));
+        parts.Add($"{Count(report.Throttled)} procesos moderados, {Count(report.Frozen)} congelados, ninguno terminado");
+        parts.Add($"{report.ServicesPaused.Count} servicios en pausa");
+        if (report.TimerMs is double ms) parts.Add($"temporizador a {ms:0.0##} ms");
+        _override = string.Join(". ", parts) + ". El gobernador sigue vigilando. Tócame para revertir.";
         if (report.Warnings.Count > 0) _override += $" ({report.Warnings.Count} avisos)";
         if (gameName is not null) _override = $"{gameName}: " + _override;
         _host.Refresh();
@@ -196,7 +231,9 @@ public sealed partial class HomeView : UserControl
         if (_host is null || _phase is Phase.Running or Phase.Release || !RequireAdmin()) return;
         _anim.Gulp(8, Environment.TickCount64);
         Sound?.Play(Sfx.Gulp);
-        var r = await _host.PurgeAsync(PurgeOps.Boost);
+        // In reposo: deep sweep (system cache + modified + both standby lists). Mid-game: standby only, never the game's pages.
+        var ops = _phase == Phase.Done ? PurgeOps.Boost : PurgeOps.SystemWorkingSet | PurgeOps.ModifiedList | PurgeOps.Boost;
+        var r = await _host.PurgeAsync(ops);
         _override = r.Steps.All(s => s.Ok)
             ? $"Caché purgada: +{Math.Max(0, r.FreedBytes) / (1024.0 * 1024 * 1024):0.00} GB de memoria libre real. Sin incidencias."
             : $"Purga incompleta: {r.Steps.First(s => !s.Ok).Error}";
@@ -229,9 +266,9 @@ public sealed partial class HomeView : UserControl
 
         (string kicker, string head, string idleVoice, string solid) = _phase switch
         {
-            Phase.Running => ($"ESTADO 02 · ANÁLISIS · {_step}/6", "ANÁLISIS",
-                              $"Procesando: {StepNames[Math.Clamp(_step - 1, 0, 5)]}.", "OCTAEDRO · AIRE"),
-            Phase.Done => ("ESTADO 03 · MAX BOOST", "CONTENCIÓN\nACTIVA", "", "TETRAEDRO · FUEGO"),
+            Phase.Running => ($"ESTADO 02 · ANÁLISIS · {_step}/{Steps}", "ANÁLISIS",
+                              $"Procesando: {StepNames[Math.Clamp(_step - 1, 0, Steps - 1)]}.", "OCTAEDRO · AIRE"),
+            Phase.Done => ($"ESTADO 03 · MAX BOOST · {(_level == BoostLevel.Max ? "LÍMITE" : "EQUILIBRADO")}", "CONTENCIÓN\nACTIVA", "", "TETRAEDRO · FUEGO"),
             Phase.Release => ("ESTADO 04 · LIBERACIÓN", "LIBERACIÓN", "Restaurando estado previo. Procesos reanudados. Plan de energía original.", "ICOSAEDRO · AGUA"),
             _ => ("ESTADO 01 · REPOSO", "EN\nREPOSO",
                   $"Caché retenida: {standby} GB. Procesos en observación: {watched}. En espera de orden.", "DODECAEDRO · ÉTER"),
@@ -251,19 +288,21 @@ public sealed partial class HomeView : UserControl
         };
         AutomationPropertiesHelper.SetName(EntityButton, _phase == Phase.Done ? "Restaurar el sistema" : "Activar BOOST");
 
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < Steps; i++)
             _segments[i].Fill = (Brush)Application.Current.Resources[
                 _phase == Phase.Done ? "Gold" : _phase == Phase.Running && i < _step ? "Ink" : "Line"];
 
         if (mem is not null)
         {
             FreeValue.Text = Units.GbText(mem.FreeBytes);
-            FreeNote.Text = mem.FreeBytes < 1UL << 30 ? "Memoria libre crítica" : "Libre sin desalojar nada";
+            FreeNote.Text = _phase == Phase.Done && _host?.Governor is { } g
+                ? (g.Purges == 0 ? "Gobernador vigilando cada 2 s" : $"Gobernador: {g.Purges} purgas · +{Units.Gb((ulong)g.FreedBytes):0.00} GB")
+                : mem.FreeBytes < 1UL << 30 ? "Memoria libre crítica" : "Libre sin desalojar nada";
             StandbyValue.Text = mem.Detailed ? Units.GbText(mem.StandbyBytes) : "—";
             StandbyNote.Text = mem.StandbyBytes < 1UL << 30 ? "Caché devuelta a libre" : "Archivos inactivos";
         }
         BgValue.Text = watched.ToString();
-        BgNote.Text = _phase == Phase.Done ? "EcoQoS aplicado · 0 terminados"
+        BgNote.Text = _phase == Phase.Done ? $"EcoQoS aplicado · {_host?.Governor?.Tamed ?? 0} nuevos domados · 0 terminados"
                     : _host?.WatchedSample is { Length: > 0 } s ? $"{s} en observación" : "Nada que moderar";
         CleanButton.IsEnabled = _phase is Phase.Idle or Phase.Done;
 

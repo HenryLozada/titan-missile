@@ -73,6 +73,10 @@ public sealed partial class MainWindow : Window
         UpdateSoundButton();
         Home.ScanRequested += Sweep;
         if (_host.RecoverIfNeeded() is { } recovered) Home.AnnounceRecovery(recovered);
+        Home.Level = _settings.Level;
+        Home.LevelChanged += l => { _settings.Level = l; AppData.Save(_settings); };
+        _host.GuardToggled += on => { _settings.Guardian = on; AppData.Save(_settings); };
+        if (_host.IsElevated && _settings.Guardian) _host.SetGuard(true);
 
         AddTab("INICIO", Home);
         AddTab("JUEGOS", Games);
@@ -91,7 +95,11 @@ public sealed partial class MainWindow : Window
         _host.Updated += UpdateStatus;
         UpdateStatus();
 
-        VisibilityChanged += (_, e) => _visible = e.Visible;
+        VisibilityChanged += (_, e) =>
+        {
+            _visible = e.Visible;
+            if (_host.Boosted) _host.StepAside(!e.Visible);      // minimized mid-session: hand our RAM back to the game
+        };
         CompositionTarget.Rendering += OnFrame;
         Closed += OnClosed;
         StartIntro();
@@ -337,7 +345,7 @@ public sealed partial class MainWindow : Window
         if (boost)
         {
             Select(0);
-            await Home.BoostForGame(pid, game.Name);
+            await Home.BoostForGame(pid, game.Name, game.InstallDir);
             // The window steps aside while you play: minimized = no rendering at all.
             if (_settings.MinimizeOnAutoBoost && AppWindow.Presenter is OverlappedPresenter op) op.Minimize();
         }
@@ -355,7 +363,7 @@ public sealed partial class MainWindow : Window
         _monitor = null;
         if (stats is not null && stats.Frames > 0)
         {
-            double freed = s.Report?.Purge is { } p ? Math.Max(0, p.FreedBytes) / (1024.0 * 1024 * 1024) : 0;
+            double freed = ((s.Report?.Purge is { } p ? Math.Max(0, p.FreedBytes) : 0) + (_host.Governor?.FreedBytes ?? 0)) / (1024.0 * 1024 * 1024);
             _reports.Add(new SessionReport
             {
                 Id = Guid.NewGuid().ToString("N"), GameId = game.Id, GameName = game.Name, Start = s.Start, Seconds = stats.Seconds,

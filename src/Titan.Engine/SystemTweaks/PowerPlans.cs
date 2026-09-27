@@ -53,6 +53,42 @@ public static unsafe class PowerPlans
         return Exists(TitanUltimate);
     }
 
+    private static readonly Guid SubProcessor = new("54533251-82be-4824-96c1-47b60b740d00");
+    private static readonly Guid SubUsb = new("2a737441-1930-4402-8d77-b2bebba308a3");
+    private static readonly Guid SubPcie = new("501a4d13-42af-4429-9fd1-a8139f2c4b5b");
+    private static readonly Guid SubDisk = new("0012ee47-9041-4b5d-9b77-535fba8b1442");
+
+    /// <summary>What "maximum" means in our own scheme. Only ever written to TITAN Ultimate, never to the user's plans.</summary>
+    private static readonly (Guid Sub, Guid Setting, uint Value, string What)[] MaxSettings =
+    [
+        (SubProcessor, new("893dee8e-2bef-41e0-89c6-b55d0929964c"), 100, "estado mínimo del procesador 100 %"),
+        (SubProcessor, new("bc5038f7-23e0-4960-96da-33abaf5935ec"), 100, "estado máximo del procesador 100 %"),
+        (SubProcessor, new("0cc5b647-c1df-4637-891a-dec35c318583"), 100, "sin aparcamiento de núcleos"),
+        (SubProcessor, new("be337238-0d82-4146-a960-4f3749d470c7"), 2, "turbo agresivo"),
+        (SubProcessor, new("36687f9e-e3a5-4dbf-b1dc-15eb381c6863"), 0, "preferencia energética: rendimiento"),
+        (SubUsb, new("48e6b7a6-50f5-4782-a5d4-53bb8f07e226"), 0, "USB sin suspensión selectiva"),
+        (SubPcie, new("ee12f906-d277-404b-b6da-e5fa1a576df5"), 0, "PCIe sin ahorro de enlace"),
+        (SubDisk, new("6738e2c4-e8a5-4a42-b16a-e040e769756e"), 0, "discos siempre despiertos"),
+    ];
+
+    /// <summary>
+    /// Pins TITAN Ultimate to full performance (idempotent). Settings a CPU doesn't expose are skipped.
+    /// Returns how many were written.
+    /// </summary>
+    public static int TuneTitanUltimate()
+    {
+        if (!Exists(TitanUltimate)) return 0;
+        int ok = 0;
+        foreach (var (sub, setting, value, _) in MaxSettings)
+        {
+            bool ac = PowerWriteACValueIndex(0, TitanUltimate, sub, setting, value) == 0;
+            bool dc = PowerWriteDCValueIndex(0, TitanUltimate, sub, setting, value) == 0;
+            if (ac || dc) ok++;
+        }
+        if (GetActive() == TitanUltimate) TrySetActive(TitanUltimate);   // re-apply so the new values take effect now
+        return ok;
+    }
+
     public static Guid? TryGetOverlay()
     {
         try { return PowerGetEffectiveOverlayScheme(out var g) == 0 ? g : null; }

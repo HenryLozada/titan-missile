@@ -123,6 +123,96 @@ public static unsafe class ProcessOps
             throw new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError());
     }
 
+    /// <summary>
+    /// The game side of power throttling: never EcoQoS, and honor its timer-resolution requests even when
+    /// minimized/occluded (Win11 ignores them otherwise). Undo with <see cref="SetEcoQoS"/>(pid, false).
+    /// </summary>
+    public static void SetHighQoS(int pid)
+    {
+        using var h = Open(pid, PROCESS_SET_INFORMATION);
+        var state = new PROCESS_POWER_THROTTLING_STATE
+        {
+            Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+            ControlMask = PROCESS_POWER_THROTTLING_EXECUTION_SPEED | PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION,
+            StateMask = 0,
+        };
+        if (!SetProcessInformation(h, ProcessPowerThrottling, &state, (uint)sizeof(PROCESS_POWER_THROTTLING_STATE)))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError());
+    }
+
+    /// <summary>
+    /// Page priority (1 = very low … 5 = normal; Windows rejects 0 — verified). Pages of a low-priority process land
+    /// on low-priority standby, which Windows repurposes before the game's own cache (priority 5).
+    /// </summary>
+    public static uint GetMemoryPriority(int pid)
+    {
+        using var h = Open(pid, PROCESS_QUERY_INFORMATION);
+        uint value;
+        if (!GetProcessInformation(h, ProcessMemoryPriority, &value, sizeof(uint)))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError());
+        return value;
+    }
+
+    public static void SetMemoryPriority(int pid, uint priority)
+    {
+        using var h = Open(pid, PROCESS_SET_INFORMATION);
+        if (!SetProcessInformation(h, ProcessMemoryPriority, &priority, sizeof(uint)))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastPInvokeError());
+    }
+
+    /// <summary>I/O priority hint: 0 very low, 1 low, 2 normal.</summary>
+    public static int GetIoPriority(int pid)
+    {
+        using var h = Open(pid, PROCESS_QUERY_INFORMATION);
+        int value;
+        int rc = NtQueryInformationProcess(h, ProcessIoPriority, &value, sizeof(int), out _);
+        if (rc != STATUS_SUCCESS) throw new NtStatusException($"IoPriority({pid})", rc);
+        return value;
+    }
+
+    public static void SetIoPriority(int pid, int priority)
+    {
+        using var h = Open(pid, PROCESS_SET_INFORMATION);
+        int rc = NtSetInformationProcess(h, ProcessIoPriority, &priority, sizeof(int));
+        if (rc != STATUS_SUCCESS) throw new NtStatusException($"IoPriority({pid})", rc);
+    }
+
+    public const int STATUS_INVALID_PARAMETER = unchecked((int)0xC000000D);
+
+    /// <summary>
+    /// GPU scheduler priority class (D3DKMT): 2 normal, 3 above normal, 4 high. Both calls need SET_INFORMATION
+    /// (verified), and fail with STATUS_INVALID_PARAMETER until the process has created its first GPU device.
+    /// </summary>
+    public static int GetGpuPriority(int pid)
+    {
+        using var h = Open(pid, PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION);
+        int rc = D3DKMTGetProcessSchedulingPriorityClass(h, out int value);
+        if (rc != STATUS_SUCCESS) throw new NtStatusException($"GpuPriority({pid})", rc);
+        return value;
+    }
+
+    public static void SetGpuPriority(int pid, int priority)
+    {
+        using var h = Open(pid, PROCESS_SET_INFORMATION);
+        int rc = D3DKMTSetProcessSchedulingPriorityClass(h, priority);
+        if (rc != STATUS_SUCCESS) throw new NtStatusException($"GpuPriority({pid})", rc);
+    }
+
+    /// <summary>Moves a process's resident pages to standby/modified. Returns false if it can't be opened.</summary>
+    public static bool TrimWorkingSet(int pid)
+    {
+        using var h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_SET_QUOTA, false, pid);
+        return !h.IsInvalid && EmptyWorkingSet(h);
+    }
+
+    /// <summary>TITAN steps aside: compact the managed heap and hand our own pages back.</summary>
+    public static void TrimSelf()
+    {
+        GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+        using var self = new SafeProcessHandle(GetCurrentProcess(), ownsHandle: false);
+        EmptyWorkingSet(self);
+    }
+
     public static uint[] GetDefaultCpuSets(int pid)
     {
         using var h = Open(pid, PROCESS_QUERY_LIMITED_INFORMATION);
