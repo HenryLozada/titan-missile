@@ -7,15 +7,8 @@
     this.timers = [];
     this.setCanvas = (el) => this.mountGL(el);
   }
-  vivid() { return this.props.intensidad === 'Viva'; }
-  palette() {
-    return this.vivid() ? ['#00FF66', '#00E5FF', '#D000FF', '#00FFAA', '#FFB700']
-                        : ['#B4E3C8', '#B2E4EC', '#DDB3EE', '#B3E6D6', '#EDD5A6'];
-  }
-  marks() {
-    return this.vivid() ? ['#00C853', '#00B8CC', '#A800CC', '#00C98A', '#D99800']
-                        : ['#5E9E7C', '#5A9AA8', '#9A6BB0', '#5C9C88', '#A98A4E'];
-  }
+  palette() { return ['#F2C200', '#F2C200', '#F2C200', '#F2C200', '#F2C200']; }
+  marks() { return this.palette(); }
   dark() { return this.props.fondo === 'Oscuro'; }
   setEntity(n) { this.ent.target = n; }
   gulp(force) { this.ent.gulpV = force || 7; this.ent.snapUntil = performance.now() + 420; }
@@ -78,10 +71,10 @@
       gl.uniform3f(u.mouse, e.mx, e.my, e.mz);
       gl.uniform1f(u.rot, e.rot);
       gl.uniform1f(u.shock, e.shock);
-      gl.uniform3fv(u.bg, dk ? [6 / 255, 6 / 255, 7 / 255] : [238 / 255, 239 / 255, 236 / 255]);
+      gl.uniform3fv(u.bg, dk ? [8 / 255, 8 / 255, 9 / 255] : [246 / 255, 246 / 255, 243 / 255]);
       gl.uniform1f(u.dark, dk ? 1 : 0);
       gl.uniform3fv(u.pal, this.palette().flatMap(hex));
-      gl.uniform1f(u.amt, this.vivid() ? 1.15 : 0.75);
+      gl.uniform1f(u.amt, 0.9);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
     const wake = () => { if (!running && this.visible && !document.hidden) { running = true; last = performance.now(); this.raf = requestAnimationFrame(loop); } };

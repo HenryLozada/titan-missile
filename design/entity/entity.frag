@@ -37,25 +37,23 @@ vec3 map(vec3 pv){
   vec2 acc = vec2(0.);
   if (W[0] > .001) acc += W[0]*fDode(q, .62);
   if (W[1] > .001) acc += W[1]*fOcta(q, .55);
-  if (W[2] > .001) acc += W[2]*fTetra(q, .34);
+  if (W[2] > .001) acc += W[2]*fTetra(q, .30);
   if (W[3] > .001) acc += W[3]*fIcosa(q, .64);
   if (W[4] > .001) acc += W[4]*fCube(q, .52);
   // Solid most of the time; melts to liquid only mid-transition between two solids.
   float mw = max(max(max(W[0], W[1]), max(W[2], W[3])), W[4]);
   float melt = clamp((1. - mw)*2.2, 0., 1.);
-  float d = mix(acc.x - .025, L - .78, .75*melt);
+  float d = mix(acc.x - .012, L - .74, .75*melt);
   // surface life: a tiny ripple, never enough to hide the faces
   float ripple = W[0]*.004 + W[1]*.003 + W[2]*.002 + W[3]*.007 + W[4]*.0015 + melt*.02;
   d -= ripple*(sin(7.*q.x + 1.3*T + SEED) + sin(7.6*q.y - 1.1*T) + sin(6.8*q.z + .9*T));
   d -= W[3]*.006*sin(10.*L - T*3.5);                            // liberation: slow travelling wave
 
   float tip = 0.;
-  if (FX.y > .001){                                            // MAX BOOST: only the 4 tetra vertices stretch into needles
+  if (FX.y > .001){                                            // MAX BOOST: a true tetrahedron; only the vertex points light up
     float cv = 0.;
     for (int i=0;i<4;i++) cv = max(cv, dot(dir, -TETRA[i]));
-    float vert = pow(smoothstep(.86, 1., cv), 4.);
-    d -= FX.y*.3*vert*(.95 + .05*sin(T*11. + SEED));
-    tip = FX.y*pow(smoothstep(.93, 1., cv), 2.);
+    tip = FX.y*pow(smoothstep(.97, 1., cv), 3.);
   }
   d *= scale;
 
@@ -68,7 +66,7 @@ vec3 map(vec3 pv){
   for (int i=0;i<6;i++){
     float fi = float(i);
     float th = fi*1.047 + T*(.2 + .05*fi) + SEED;
-    float orb = 1.3 + .1*sin(T*.4 + fi*1.9);
+    float orb = 1.1 + .05*sin(T*.4 + fi*1.9);
     orb = mix(orb, .15, clamp(FX.z*1.3 - fi*.06, 0., 1.));
     vec3 cc = vec3(cos(th)*orb, sin(fi*2.1 + T*.3)*.3*orb, sin(th)*orb);
     drops = min(drops, length(pv - cc) - (.06 + .025*sin(fi*3.7)));
@@ -79,6 +77,15 @@ vec3 map(vec3 pv){
 vec3 calcNormal(vec3 p){
   const vec2 k = vec2(1., -1.); float e = .0012;
   return normalize(k.xyy*map(p + k.xyy*e).x + k.yyx*map(p + k.yyx*e).x + k.yxy*map(p + k.yxy*e).x + k.xxx*map(p + k.xxx*e).x);
+}
+
+float hash3(vec3 p){ p = fract(p*.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y)*p.z); }
+vec3 ferroDots(vec3 p, float scale){
+  vec3 g = p*scale, id = floor(g), f = fract(g) - .5;
+  vec3 c = (vec3(hash3(id), hash3(id + 7.1), hash3(id + 3.3)) - .5)*.4;
+  vec3 dv = f - c;
+  float bump = 1. - smoothstep(0., .34, length(dv));
+  return normalize(dv + 1e-4)*bump*bump;
 }
 
 vec3 env(vec3 d){                                              // clinical studio: pale room, two long softboxes
@@ -112,11 +119,11 @@ void main(){
   vec3 col = uBg;
   col *= 1. - .1*(1. - uDark)*exp(-pow(length(vec2(uv.x*1.1, (uv.y + .82)*5.)), 2.)*1.5);   // contact shadow
   if (shock > 0.){
-    float ring = abs(length(uv) - (.5 + shock*.95));
+    float ring = abs(length(uv) - (.45 + shock*.45));
     col = mix(col, glow, .6*(1. - shock)*(1. - smoothstep(0., .012, ring)));
   }
 
-  vec3 ro = vec3(0., 0., 3.6), rd = normalize(vec3(uv, -2.2));
+  vec3 ro = vec3(0., 0., 3.6), rd = normalize(vec3(uv, -2.45));
   float b = dot(ro, rd), h = b*b - (dot(ro, ro) - 1.75*1.75);
   float minD = 1e3, t = 0.; bool hit = false; vec3 m = vec3(0.);
   if (h > 0.){
@@ -136,12 +143,14 @@ void main(){
   } else {
     vec3 p = ro + rd*t, n = calcNormal(p), v = -rd;
     float liquid = W[0]*.5 + W[1]*.3 + W[2]*.2 + W[3]*1. + W[4]*.25;          // reflective liquid skin
-    n = normalize(n + .025*liquid*vec3(sin(p.y*22. + T*1.8), sin(p.z*22. - T*1.5), sin(p.x*22. + T*1.2)));
+    n = normalize(n + .018*liquid*vec3(sin(p.y*22. + T*1.8), sin(p.z*22. - T*1.5), sin(p.x*22. + T*1.2)));
+    n = normalize(n + .22*ferroDots(p, 64.));                                              // ferro grain
     vec3 r = reflect(rd, n);
     float fres = pow(1. - max(dot(n, v), 0.), 4.);
     col = vec3(.012, .012, .015) + env(r)*(.045 + .88*fres);
     vec3 Ld = normalize(vec3(-.5, .7, .6));
     col += pow(max(dot(r, Ld), 0.), 220.)*1.4;
+    col += pow(max(dot(r, Ld), 0.), 900.)*2.2*glow;                                        // grain glints
     col += W[1]*pow(max(sin(r.y*16. + T*7.), 0.), 30.)*.25;                                // faint platinum scan
     float pulse = W[0]*(.7 + .3*sin(T*1.3)) + W[1]*(.75 + .25*sin(T*5.)) + W[2]*(.9 + .1*sin(T*9.))
                 + W[3]*(.5 + .5*exp(-fract(T*.5)*3.)) + W[4];
@@ -150,5 +159,7 @@ void main(){
     col += glow*m.z*1.1*uGlowAmt;                                                          // …and on the boost vertices
     col += mix(vec3(1.), glow, .5)*fres*mix(.10, .55, uDark);                              // rim: visible on dark UIs
   }
+  float border = max(abs(uv.x)*R/(res.x*.5), abs(uv.y)*R/(res.y*.5));
+  col = mix(col, uBg, smoothstep(.86, .99, border));                                      // fade into the page, no cuts
   outColor = vec4(col, 1.);
 }

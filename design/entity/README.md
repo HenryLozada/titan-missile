@@ -6,11 +6,13 @@
 - `engine.reference.js` — controlador de referencia: resortes por estado, 30 fps en reposo,
   0 fps con la ventana oculta, y los efectos de sonido sintetizados (WebAudio).
 
-Estados (intensidad Contenida, por defecto): 1 Reposo/dodecaedro `#B4E3C8` · 2 Análisis/octaedro `#B2E4EC` · 3 Max Boost/tetraedro `#DDB3EE` · 4 Liberación/icosaedro `#B3E6D6` · 5 Persistencia/cubo `#EDD5A6`.
-Intensidad Viva: `#00FF66` · `#00E5FF` · `#D000FF` · `#00FFAA` · `#FFB700`.
+Paleta: negro, amarillo ferro `#F2C200` y blanco `#F6F6F3`. La luz vive solo en las aristas; el tetraedro (Max Boost) enciende además sus 4 vértices.
+Textura ferro: micro-puntos en relieve (celular, nunca cuadrados) que brillan con la luz.
+Bordes del lienzo con desvanecido: nada se corta.
 
-La luz vive solo en aristas (y en los 4 vértices del tetraedro). Los sólidos son casi puros; se funden en líquido solo durante la transición.
-Tipografía: Syne 800 (títulos, mayúsculas, tracking amplio) + JetBrains Mono (todo lo demás). Fondo clínico `#EEEFEC`.
+- `helix.frag` — medidor de RAM: doble hélice vertical de ferrofluido. 24 peldaños ≈ 1 GB cada uno; de abajo arriba: en uso (negro), Standby (blanco), libre (amarillo).
+
+Tipografía: Syne 800 (títulos) + JetBrains Mono (resto).
 
 Port a la app WinUI 3: el shader se traduce a HLSL casi 1:1 (vec→float, mix→lerp, fract→frac,
 mat2*v → mul) y se dibuja en un SwapChainPanel con Direct3D 11, o con Win2D PixelShaderEffect.
