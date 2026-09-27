@@ -90,7 +90,7 @@ public sealed partial class GamesView : UserControl
         else
         {
             var fallback = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center, Spacing = 14 };
-            var icon = new Image { Width = 64, Height = 64 };
+            var icon = new Image { Width = 104, Height = 104 };
             fallback.Children.Add(icon);
             fallback.Children.Add(new TextBlock
             {
@@ -155,7 +155,9 @@ public sealed partial class GamesView : UserControl
         try
         {
             var file = await StorageFile.GetFileFromPathAsync(exe);
-            using var thumb = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, 96, ThumbnailOptions.UseCurrentScale);
+            // 256 px: crisp on the card. ResizeThumbnail asks Windows for the largest icon the exe carries.
+            using var thumb = await file.GetThumbnailAsync(ThumbnailMode.SingleItem, 256, ThumbnailOptions.ResizeThumbnail);
+            if (thumb is null || thumb.Size == 0) return;
             var bmp = new BitmapImage();
             await bmp.SetSourceAsync(thumb);
             target.Source = bmp;
