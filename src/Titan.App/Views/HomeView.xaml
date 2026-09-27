@@ -24,7 +24,7 @@
                 <Rectangle Width="7" Height="7" Fill="{StaticResource Gold}" VerticalAlignment="Center" />
                 <TextBlock x:Name="Kicker" Style="{StaticResource Label}" />
             </StackPanel>
-            <TextBlock x:Name="Headline" Grid.Row="1" Style="{StaticResource Headline}" FontSize="50" LineHeight="52" Margin="0,22,0,0" />
+            <TextBlock x:Name="Headline" Grid.Row="1" Style="{StaticResource Headline}" FontSize="40" LineHeight="44" Margin="0,22,0,0" />
             <TextBlock x:Name="Voice" Grid.Row="2" Style="{StaticResource Body}" MaxWidth="300" HorizontalAlignment="Left" Margin="0,22,0,0" />
             <StackPanel Grid.Row="4" Spacing="6">
                 <TextBlock x:Name="PlanLine" Style="{StaticResource Label}" FontSize="10" CharacterSpacing="80" />

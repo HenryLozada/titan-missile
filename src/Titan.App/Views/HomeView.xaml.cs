@@ -30,6 +30,13 @@ public sealed partial class HomeView : UserControl
 
     /// <summary>Asks the window for the golden scan sweep.</summary>
     public event Action? ScanRequested;
+    /// <summary>Raised when a boost finishes applying (report) and when the system is back to normal.</summary>
+    public event Action<BoostReport>? Boosted;
+    public event Action? Released;
+
+    public SoundEngine? Sound { get; set; }
+    private double _nextPulse;
+    private string? _gameName;
 
     public bool IsBoosted => _phase == Phase.Done;
 
@@ -70,6 +77,11 @@ public sealed partial class HomeView : UserControl
         if (_surface is null || !_surface.Ready) return;
         if (_anim.Update(dt, nowMs, Targets()))
             _surface.Render(_anim.Params(_surface.PixelWidth, _surface.PixelHeight));
+        if (_phase == Phase.Idle && nowMs >= _nextPulse)          // Reposo heartbeat, in step with the visual pulse
+        {
+            if (_nextPulse > 0) Sound?.Play(Sfx.Pulse);
+            _nextPulse = nowMs + 4833;
+        }
     }
 
     private EntityTargets Targets() => _phase switch
@@ -107,11 +119,16 @@ public sealed partial class HomeView : UserControl
 
     public void ToggleBoost()
     {
-        if (_phase == Phase.Idle) _ = Boost();
+        if (_phase == Phase.Idle) _ = Boost(null, null);
         else if (_phase == Phase.Done) _ = Release();
     }
 
     public void ReleaseIfBoosted() { if (_phase == Phase.Done) _ = Release(); }
+
+    /// <summary>Auto-boost / JUGAR: boost with the game as target (priority + CPU sets for that process).</summary>
+    public Task BoostForGame(int pid, string name) => _phase == Phase.Idle ? Boost(pid, name) : Task.CompletedTask;
+
+    public Task ReleaseAsync() => _phase == Phase.Done ? Release() : Task.CompletedTask;
 
     private bool RequireAdmin()
     {
@@ -120,17 +137,18 @@ public sealed partial class HomeView : UserControl
         return false;
     }
 
-    private async Task Boost()
+    private async Task Boost(int? gamePid, string? gameName)
     {
         if (_host is null || !RequireAdmin()) return;
-        _phase = Phase.Running; _step = 0; _override = null;
+        _phase = Phase.Running; _step = 0; _override = null; _gameName = gameName;
         _anim.State = EntityState.Analysis;
+        Sound?.Play(Sfx.Absorb);
         Refresh();
-        var progress = new Progress<BoostProgress>(p => { _step = p.Step; Refresh(); });
+        var progress = new Progress<BoostProgress>(p => { _step = p.Step; Sound?.Play(Sfx.Tick); Refresh(); });
         BoostReport report;
         try
         {
-            report = await _host.BoostAsync(progress);
+            report = await _host.BoostAsync(progress, gamePid);
         }
         catch (Exception ex)
         {
@@ -141,13 +159,16 @@ public sealed partial class HomeView : UserControl
         _phase = Phase.Done;
         _anim.State = EntityState.MaxBoost;
         _anim.Kick(7); _anim.Shock();
+        Sound?.Play(Sfx.Boost);
         ScanRequested?.Invoke();
         double freed = report.Purge is null ? 0 : Math.Max(0, report.Purge.FreedBytes) / (1024.0 * 1024 * 1024);
         _override = $"{freed:0.00} GB recuperados. {Count(report.Throttled)} procesos moderados, {Count(report.Frozen)} congelados. " +
                     $"Ninguno terminado. {report.ServicesPaused.Count} servicios en pausa. Tócame para revertir.";
         if (report.Warnings.Count > 0) _override += $" ({report.Warnings.Count} avisos)";
+        if (gameName is not null) _override = $"{gameName}: " + _override;
         _host.Refresh();
         Refresh();
+        Boosted?.Invoke(report);
     }
 
     private async Task Release()
@@ -155,6 +176,7 @@ public sealed partial class HomeView : UserControl
         if (_host is null) return;
         _phase = Phase.Release; _anim.State = EntityState.Release;
         _anim.Shock(); ScanRequested?.Invoke();
+        Sound?.Play(Sfx.Release);
         _override = null;
         Refresh();
         var r = await _host.RestoreAsync();
@@ -163,14 +185,17 @@ public sealed partial class HomeView : UserControl
         _override = r.Failures.Count == 0
             ? $"Estado previo restaurado: {r.Reverted} cambios revertidos en {r.Elapsed.TotalMilliseconds:0} ms."
             : $"Restaurado con {r.Failures.Count} incidencias: {r.Failures[0]}";
+        _gameName = null;
         _host.Refresh();
         Refresh();
+        Released?.Invoke();
     }
 
     public async void Clean()
     {
         if (_host is null || _phase is Phase.Running or Phase.Release || !RequireAdmin()) return;
         _anim.Gulp(8, Environment.TickCount64);
+        Sound?.Play(Sfx.Gulp);
         var r = await _host.PurgeAsync(PurgeOps.Boost);
         _override = r.Steps.All(s => s.Ok)
             ? $"Caché purgada: +{Math.Max(0, r.FreedBytes) / (1024.0 * 1024 * 1024):0.00} GB de memoria libre real. Sin incidencias."
@@ -182,6 +207,7 @@ public sealed partial class HomeView : UserControl
     /// <summary>LT + RT: a visual discharge only (no system action).</summary>
     public void Discharge()
     {
+        Sound?.Play(Sfx.Gulp);
         _anim.Gulp(11, Environment.TickCount64);
         _anim.Shock();
         ScanRequested?.Invoke();
@@ -212,9 +238,10 @@ public sealed partial class HomeView : UserControl
         };
         Kicker.Text = kicker;
         Headline.Text = head;
-        SolidLine.Text = "SÓLIDO · " + solid;
         PlanLine.Text = "PLAN ··· " + (_host?.PowerPlan is { Length: > 0 } p ? p.ToUpperInvariant() : "—");
-        SessionLine.Text = "SESIÓN · " + (_phase == Phase.Done ? "ABIERTA · REVERSIBLE" : "NINGUNA");
+        SessionLine.Text = "SESIÓN · " + (_phase == Phase.Done ? (_gameName is null ? "ABIERTA · REVERSIBLE" : _gameName.ToUpperInvariant()) : "NINGUNA");
+        int fixedCount = _host?.Tweaks.AppliedCount ?? 0;
+        SolidLine.Text = "SÓLIDO · " + solid + (fixedCount > 0 ? $"  ·  {fixedCount} AJUSTES FIJOS" : "");
         Hint.Text = _phase switch
         {
             Phase.Running => "ABSORBIENDO",
@@ -231,9 +258,9 @@ public sealed partial class HomeView : UserControl
         if (mem is not null)
         {
             FreeValue.Text = Units.GbText(mem.FreeBytes);
-            FreeNote.Text = mem.FreeBytes < 1UL << 30 ? "Memoria libre crítica" : "Disponible sin desalojar a nadie";
+            FreeNote.Text = mem.FreeBytes < 1UL << 30 ? "Memoria libre crítica" : "Libre sin desalojar nada";
             StandbyValue.Text = mem.Detailed ? Units.GbText(mem.StandbyBytes) : "—";
-            StandbyNote.Text = mem.StandbyBytes < 1UL << 30 ? "Caché devuelta a memoria libre" : "Archivos inactivos retenidos";
+            StandbyNote.Text = mem.StandbyBytes < 1UL << 30 ? "Caché devuelta a libre" : "Archivos inactivos";
         }
         BgValue.Text = watched.ToString();
         BgNote.Text = _phase == Phase.Done ? "EcoQoS aplicado · 0 terminados"

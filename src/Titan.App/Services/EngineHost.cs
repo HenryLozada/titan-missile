@@ -76,8 +76,10 @@ public sealed class EngineHost : IDisposable
         });
     }
 
-    public Task<BoostReport> BoostAsync(IProgress<BoostProgress> progress) =>
-        Task.Run(() => _engine.Engage(new BoostOptions(), progress));
+    public Task<BoostReport> BoostAsync(IProgress<BoostProgress> progress, int? gamePid = null) =>
+        Task.Run(() => _engine.Engage(new BoostOptions { GamePid = gamePid }, progress));
+
+    public TweakCatalog Tweaks { get; } = new();
 
     public Task<RestoreReport> RestoreAsync() => Task.Run(_engine.Restore);
 

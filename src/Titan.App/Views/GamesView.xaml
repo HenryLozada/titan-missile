@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Titan.App.Views.GamesView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid Padding="48,34,48,0" RowSpacing="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <StackPanel Spacing="10">
+                <TextBlock x:Name="Kicker" Text="BIBLIOTECA" Style="{StaticResource Label}" />
+                <TextBlock Text="JUEGOS REGISTRADOS" Style="{StaticResource Headline}" FontSize="34" />
+                <TextBlock x:Name="Sub" Style="{StaticResource Label}" FontSize="12" CharacterSpacing="0" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" VerticalAlignment="Top">
+                <Button x:Name="AddButton" Style="{StaticResource Pill}" Content="AÑADIR .EXE" Click="Add_Click" />
+                <Button x:Name="ScanButton" Style="{StaticResource Pill}" Content="ESCANEAR UNIDADES" Click="Scan_Click"
+                        Background="{StaticResource Ink}" Foreground="{StaticResource Bg}" />
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,0,48">
+            <Grid x:Name="Cards" ColumnSpacing="20" RowSpacing="26" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

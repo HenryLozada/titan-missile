@@ -15,18 +15,18 @@
         <!-- Header / title bar -->
         <Grid Grid.Row="0" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="48,0,150,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="350" />
+                <ColumnDefinition Width="200" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Grid x:Name="DragArea" Grid.Column="0" Background="Transparent">
                 <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
                     <TextBlock Text="TITAN" FontFamily="{StaticResource Display}" FontWeight="ExtraBold" FontSize="16" CharacterSpacing="420" VerticalAlignment="Center" />
-                    <TextBlock Text="ARCHIVO 01 · CONTENCIÓN" Style="{StaticResource Label}" FontSize="10" CharacterSpacing="120" VerticalAlignment="Center" />
                 </StackPanel>
             </Grid>
             <StackPanel x:Name="Tabs" Grid.Column="1" Orientation="Horizontal" Spacing="22" HorizontalAlignment="Center" VerticalAlignment="Center" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="28,0,0,0">
+                <Button x:Name="SoundButton" Style="{StaticResource Tab}" FontSize="10" Click="Sound_Click" />
                 <Rectangle x:Name="ModeDot" Width="6" Height="6" Fill="{StaticResource Ink}" VerticalAlignment="Center" />
                 <TextBlock x:Name="Status" Style="{StaticResource Label}" FontSize="10" CharacterSpacing="100" VerticalAlignment="Center" />
             </StackPanel>
@@ -34,11 +34,10 @@
 
         <Grid x:Name="Stage" Grid.Row="1">
             <views:HomeView x:Name="Home" />
+            <views:GamesView x:Name="Games" Visibility="Collapsed" />
             <views:MemoryView x:Name="Memory" Visibility="Collapsed" />
-            <views:PlaceholderView x:Name="Games" Visibility="Collapsed" Kicker="BIBLIOTECA" Title="JUEGOS REGISTRADOS"
-                                   Body="Fase 3. Detección de Steam, Epic, GOG y Xbox; auto-boost al abrir un juego." />
-            <views:PlaceholderView x:Name="Reports" Visibility="Collapsed" Kicker="INFORME · PRESENTMON" Title="EVIDENCIA"
-                                   Body="Fase 4. FPS, 1% lows y tirones de cada sesión, con y sin BOOST." />
+            <views:TweaksView x:Name="Tweaks" Visibility="Collapsed" />
+            <views:ReportsView x:Name="Reports" Visibility="Collapsed" />
         </Grid>
 
         <!-- Cinema: vignette + scan sweep -->

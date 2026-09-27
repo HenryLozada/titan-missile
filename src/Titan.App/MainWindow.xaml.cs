@@ -14,6 +14,10 @@ using Microsoft.UI.Xaml.Shapes;
 using Titan.App.Input;
 using Titan.App.Services;
 using Titan.App.Views;
+using Titan.App.Rendering;
+using Titan.Engine.Games;
+using Titan.Engine.Session;
+using Microsoft.UI.Dispatching;
 using Windows.Graphics;
 
 namespace Titan.App;
@@ -23,7 +27,16 @@ public sealed partial class MainWindow : Window
     private const string IntroScript =
         "ARCHIVO 01 · ACCESO RESTRINGIDO\nSUJETO: TITAN\nCLASE: ANOMALÍA CONTENIDA\n{0}\nESTADO: EN REPOSO\n\nABRIENDO CONTENCIÓN…";
 
+    private sealed record GameSession(GameEntry Game, bool Boosted, DateTimeOffset Start, BoostReport? Report);
+
     private readonly EngineHost _host;
+    private readonly GameService _games;
+    private readonly ReportStore _reports = new();
+    private readonly SoundEngine _sound;
+    private readonly AppSettings _settings = AppData.LoadSettings();
+    private readonly DispatcherQueueTimer _liveTimer;
+    private FrameMonitor? _monitor;
+    private GameSession? _session;
     private readonly GamepadInput _pad = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private readonly List<(Button Button, Rectangle Dot, UIElement View)> _tabs = [];
@@ -41,14 +54,30 @@ public sealed partial class MainWindow : Window
         ConfigureWindow();
 
         _host = new EngineHost(DispatcherQueue);
+        _sound = new SoundEngine { Enabled = _settings.Sound };
+        Home.Sound = _sound;
+        Tweaks.Sound = _sound;
         Home.Attach(_host);
         Memory.Attach(_host);
+        Tweaks.Attach(_host);
+        _games = new GameService(DispatcherQueue);
+        Games.Attach(_games);
+        Reports.Attach(_reports);
+        _games.GameStarted += OnGameStarted;
+        _games.GameExited += OnGameExited;
+        Home.Boosted += r => { if (_session is { } s) _session = s with { Report = r }; };
+        _liveTimer = DispatcherQueue.CreateTimer();
+        _liveTimer.Interval = TimeSpan.FromSeconds(1);
+        _liveTimer.Tick += (_, _) => Reports.SetLive(_monitor is { } m && _session is { } s ? $"MIDIENDO · {s.Game.Name.ToUpperInvariant()} · {m.LiveFps():0} FPS" : null);
+        _liveTimer.Start();
+        UpdateSoundButton();
         Home.ScanRequested += Sweep;
         if (_host.RecoverIfNeeded() is { } recovered) Home.AnnounceRecovery(recovered);
 
         AddTab("INICIO", Home);
         AddTab("JUEGOS", Games);
         AddTab("MEMORIA", Memory);
+        AddTab("AJUSTES", Tweaks);
         AddTab("INFORMES", Reports);
         Select(0);
 
@@ -121,7 +150,7 @@ public sealed partial class MainWindow : Window
     private void UpdateStatus()
     {
         var t = _clock.Elapsed;
-        Status.Text = $"{(_host.IsElevated ? "MOTOR ACTIVO" : "SOLO LECTURA")} · T+{t:hh\\:mm\\:ss} · {_host.Cores}C/{_host.Threads}T";
+        Status.Text = $"{(_host.IsElevated ? "MOTOR ACTIVO" : "SOLO LECTURA")} · T+{t:hh\\:mm\\:ss}";
         ModeDot.Fill = (Brush)Application.Current.Resources[_host.IsElevated ? "Ink" : "Gold"];
     }
 
@@ -145,6 +174,7 @@ public sealed partial class MainWindow : Window
 
         if (_active == 0) Home.Tick(dt, now);
         else if (_active == 2) Memory.Tick(dt, now);
+        else if (_active == 3) Tweaks.Tick(dt, now);
     }
 
     // ------------------------------------------------------------------ pointer → magnetic field
@@ -170,13 +200,16 @@ public sealed partial class MainWindow : Window
                 if (_active == 0) Home.ReleaseIfBoosted(); else Select(0);
                 break;
             case PadButton.X:
-                if (_active == 0) Home.Clean(); else if (_active == 2) Memory.Purge(Titan.Engine.Memory.PurgeOps.Standby);
+                if (_active == 0) Home.Clean();
+                else if (_active == 1) _ = _games.RescanAsync();
+                else if (_active == 2) Memory.Purge(Titan.Engine.Memory.PurgeOps.Standby);
                 break;
             case PadButton.Y:
                 if (_active == 0) Home.ToggleBoost();
                 break;
             case PadButton.LB: Select(_active - 1); break;
             case PadButton.RB: Select(_active + 1); break;
+            case PadButton.Menu: ToggleSound(); break;
         }
     }
 
@@ -277,10 +310,70 @@ public sealed partial class MainWindow : Window
         sb.Begin();
     }
 
+    // ------------------------------------------------------------------ sound
+    private void Sound_Click(object sender, RoutedEventArgs e) => ToggleSound();
+
+    private void ToggleSound()
+    {
+        _settings.Sound = !_settings.Sound;
+        _sound.Enabled = _settings.Sound;
+        AppData.Save(_settings);
+        UpdateSoundButton();
+        if (_settings.Sound) _sound.Play(Sfx.Tick);
+    }
+
+    private void UpdateSoundButton() => SoundButton.Content = _settings.Sound ? "SONIDO ON" : "SONIDO OFF";
+
+    // ------------------------------------------------------------------ game sessions: auto-boost, measurement, reports
+    private async void OnGameStarted(GameEntry game, int pid, bool boost, bool measureOnly)
+    {
+        if (_session is not null) return;
+        _session = new GameSession(game, boost, DateTimeOffset.Now, null);
+        if (_host.IsElevated)
+        {
+            _monitor = new FrameMonitor(_games.IsGameProcess);
+            try { _monitor.Start(); } catch { _monitor = null; }
+        }
+        if (boost)
+        {
+            Select(0);
+            await Home.BoostForGame(pid, game.Name);
+            // The window steps aside while you play: minimized = no rendering at all.
+            if (_settings.MinimizeOnAutoBoost && AppWindow.Presenter is OverlappedPresenter op) op.Minimize();
+        }
+        else if (measureOnly)
+        {
+            Home.Say($"Midiendo {game.Name} sin BOOST para la comparación.");
+        }
+    }
+
+    private async void OnGameExited(GameEntry game)
+    {
+        if (_session is not { } s) return;
+        _session = null;
+        var stats = _monitor?.Stop();
+        _monitor = null;
+        if (stats is not null && stats.Frames > 0)
+        {
+            double freed = s.Report?.Purge is { } p ? Math.Max(0, p.FreedBytes) / (1024.0 * 1024 * 1024) : 0;
+            _reports.Add(new SessionReport
+            {
+                Id = Guid.NewGuid().ToString("N"), GameId = game.Id, GameName = game.Name, Start = s.Start, Seconds = stats.Seconds,
+                Boosted = s.Boosted, AvgFps = stats.AvgFps, Low1Fps = stats.Low1Fps, Stutters = stats.Stutters,
+                FrameTimes = stats.FrameTimes, FreedGb = freed,
+            });
+            Reports.Rebuild();
+        }
+        if (s.Boosted) await Home.ReleaseAsync();
+    }
+
     // ------------------------------------------------------------------ shutdown: never leave the PC boosted
     private void OnClosed(object sender, WindowEventArgs args)
     {
         CompositionTarget.Rendering -= OnFrame;
+        _monitor?.Dispose();
+        _games.Dispose();
+        _sound.Dispose();
         if (_host.IsElevated && _host.Boosted) _host.RestoreNow();
         _host.Dispose();
     }

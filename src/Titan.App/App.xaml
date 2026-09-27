@@ -27,9 +27,12 @@
             <SolidColorBrush x:Key="Modified" Color="#C9C9C4" />
 
             <!-- Syne / JetBrains Mono when installed; system fallbacks otherwise -->
-            <FontFamily x:Key="Display">Syne, Segoe UI Variable Display</FontFamily>
-            <FontFamily x:Key="Mono">JetBrains Mono, Cascadia Mono, Consolas</FontFamily>
+            <FontFamily x:Key="Display">ms-appx:///Assets/Fonts/Syne.ttf#Syne, Segoe UI Variable Display</FontFamily>
+            <FontFamily x:Key="Mono">ms-appx:///Assets/Fonts/JetBrainsMono.ttf#JetBrains Mono, Cascadia Mono, Consolas</FontFamily>
 
+            <Style TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{StaticResource Mono}" />
+            </Style>
             <Style x:Key="Label" TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="{StaticResource Mono}" />
                 <Setter Property="FontSize" Value="11" />
@@ -46,7 +49,7 @@
             <Style x:Key="Headline" TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="{StaticResource Display}" />
                 <Setter Property="FontWeight" Value="ExtraBold" />
-                <Setter Property="CharacterSpacing" Value="70" />
+                <Setter Property="CharacterSpacing" Value="40" />
                 <Setter Property="Foreground" Value="{StaticResource Ink}" />
             </Style>
             <Style x:Key="Figure" TargetType="TextBlock">

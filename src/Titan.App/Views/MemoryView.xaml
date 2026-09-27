@@ -12,7 +12,7 @@
 
         <StackPanel Spacing="10">
             <TextBlock x:Name="Kicker" Style="{StaticResource Label}" />
-            <TextBlock Text="CONTENIDO DE MEMORIA" Style="{StaticResource Headline}" FontSize="44" />
+            <TextBlock Text="CONTENIDO DE MEMORIA" Style="{StaticResource Headline}" FontSize="34" />
             <TextBlock Text="Lectura directa de las listas de memoria. Equivalente a RAMMap." Style="{StaticResource Label}" FontSize="12" CharacterSpacing="0" />
         </StackPanel>
 
