@@ -36,6 +36,20 @@ vec2 map(vec3 p){
     float dr = length(pa - ba*h) - .042;
     if (dr < best){ best = dr; mat = yi < uUse ? 1. : (yi < uUse + uStb ? 2. : 3.); }
   }
+  // ferro droplets born on the strands: they swell, detach, drift out and up, and thin away
+  float drops = 1e3;
+  for (int i = 0; i < 18; i++){
+    float fi = float(i);
+    float life = fract(T*(.045 + .025*fract(fi*.37)) + fi*.618);
+    float y0 = -H + 2.*H*fract(fi*.7548);
+    float a0 = twist(y0) + (mod(fi, 2.) < 1. ? 0. : 3.14159265);
+    vec3 outv = vec3(cos(a0), 0., sin(a0));
+    vec3 c = vec3(R*cos(a0), y0, R*sin(a0)) + outv*(.03 + life*.26) + vec3(0., life*.3, 0.);
+    float rad = (.03 + .03*fract(fi*.91))*smoothstep(0., .12, life)*(1. - smoothstep(.55, 1., life));
+    float tail = length(p - (c - outv*rad*1.8 - vec3(0., rad*1.2, 0.))) - rad*.45;
+    drops = min(drops, smin(length(p - c) - rad, tail, rad*.8 + .001));
+  }
+  strands = smin(strands, drops, .05);
   float d = smin(strands, best, .035);
   return vec2(d, best < strands ? mat : 0.);
 }

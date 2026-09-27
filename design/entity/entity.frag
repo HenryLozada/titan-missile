@@ -2,7 +2,7 @@
 precision highp float;
 uniform vec2 uRes; uniform float uTime; uniform float uCells;
 uniform float uW[5]; uniform vec4 uFx; uniform vec3 uMouse; uniform float uRot;
-uniform float uShock; uniform vec3 uBg; uniform float uDark; uniform vec3 uPal[5]; uniform float uGlowAmt;
+uniform float uShock; uniform vec3 uBg; uniform float uDark; uniform vec3 uPal[5]; uniform float uGlowAmt; uniform float uAura;
 out vec4 outColor;
 
 // Face normals (GDF). Dodecahedron: 6 axes -> 12 pentagonal faces. Icosahedron: 10 axes -> 20 triangles.
@@ -12,7 +12,7 @@ const vec3 TETRA[4] = vec3[4](vec3(.57735,.57735,.57735), vec3(-.57735,-.57735,.
 const vec3 ICOX[6] = vec3[6](vec3(0.,.356822,.934172), vec3(0.,-.356822,.934172), vec3(.934172,0.,.356822), vec3(-.934172,0.,.356822), vec3(.356822,.934172,0.), vec3(-.356822,.934172,0.));
 const vec3 DODE[6] = vec3[6](vec3(0.,.850651,.525731), vec3(0.,-.850651,.525731), vec3(.525731,0.,.850651), vec3(-.525731,0.,.850651), vec3(.850651,.525731,0.), vec3(-.850651,.525731,0.));
 
-float W[5]; vec4 FX; vec3 MOUSE; float ROT; float T; float SEED;
+float W[5]; vec4 FX; vec3 MOUSE; float ROT; float T; float SEED; float AURA;
 
 void top2(float v, inout float a, inout float b){ if (v > a){ b = a; a = v; } else if (v > b){ b = v; } }
 // (distance, edge proximity: 0 exactly on an edge)
@@ -53,7 +53,7 @@ vec3 map(vec3 pv){
   if (FX.y > .001){                                            // MAX BOOST: a true tetrahedron; only the vertex points light up
     float cv = 0.;
     for (int i=0;i<4;i++) cv = max(cv, dot(dir, -TETRA[i]));
-    tip = FX.y*pow(smoothstep(.97, 1., cv), 3.);
+    tip = FX.y*pow(smoothstep(.985, 1., cv), 4.);
   }
   d *= scale;
 
@@ -62,16 +62,24 @@ vec3 map(vec3 pv){
   float a = max(dot(dv, md), 0.);
   d -= MOUSE.z*(.08*pow(a, 8.) + .06*pow(a, 60.));
 
+  // 16 heavy ferro teardrops on tilted orbits: a head plus a thinner tail trailing along the motion
   float drops = 1e3;
-  for (int i=0;i<6;i++){
+  for (int i=0;i<16;i++){
     float fi = float(i);
-    float th = fi*1.047 + T*(.2 + .05*fi) + SEED;
-    float orb = 1.1 + .05*sin(T*.4 + fi*1.9);
-    orb = mix(orb, .15, clamp(FX.z*1.3 - fi*.06, 0., 1.));
-    vec3 cc = vec3(cos(th)*orb, sin(fi*2.1 + T*.3)*.3*orb, sin(th)*orb);
-    drops = min(drops, length(pv - cc) - (.06 + .025*sin(fi*3.7)));
+    float h1 = fract(sin(fi*12.9898)*43758.5453), h2 = fract(sin(fi*78.233)*12543.21);
+    float sp = (.12 + .16*h1)*(mod(fi, 2.) < 1. ? 1. : -1.);
+    float th = fi*2.39996 + T*sp + SEED;
+    float inc = (h2 - .5)*1.4;
+    float orb = .96 + .24*h2 + .03*sin(T*.5 + fi);
+    orb = mix(orb, .12, clamp(FX.z*1.3 - fi*.035, 0., 1.));
+    vec3 cc = vec3(cos(th)*orb, sin(th)*orb*sin(inc), sin(th)*orb*cos(inc));
+    vec3 tang = normalize(vec3(-sin(th), cos(th)*sin(inc), cos(th)*cos(inc)))*sign(sp);
+    float rad = .02 + .042*h1*h1;
+    float head = length(pv - cc) - rad;
+    float tail = length(pv - (cc - tang*rad*2.4)) - rad*.42;
+    drops = min(drops, smin(head, tail, rad*.9));
   }
-  return vec3(smin(d, drops, .2), acc.y + melt, tip);
+  return vec3(smin(d, drops, .16), acc.y + melt, tip);
 }
 
 vec3 calcNormal(vec3 p){
@@ -105,12 +113,12 @@ void main(){
   vec2 uv = (fc - res*.5)/R;
 
   for (int i=0;i<5;i++) W[i] = uW[i];
-  FX = uFx; MOUSE = uMouse; ROT = uRot; T = uTime; SEED = 0.;
+  FX = uFx; MOUSE = uMouse; ROT = uRot; T = uTime; SEED = 0.; AURA = uAura;
   float shock = uShock;
   if (cells > 1.5){                                            // identity sheet: one state per cell
     int ci = int(cell);
     for (int i=0;i<5;i++) W[i] = (i == ci) ? 1. : 0.;
-    SEED = cell*2.3; MOUSE = vec3(0.); shock = 0.;
+    SEED = cell*2.3; MOUSE = vec3(0.); shock = 0.; AURA = ci == 2 ? 1. : .18;
     FX = ci == 1 ? vec4(.4, 0., .5, 0.) : ci == 2 ? vec4(0., 1., 1., 0.) : vec4(0.);
     ROT = uRot*(ci == 1 ? 3. : 1.) + cell*.9;
   }
@@ -138,26 +146,33 @@ void main(){
   }
   float pw = 2.4/R;
   if (!hit){
-    col = mix(col, glow, mix(.10, .38, uDark)*uGlowAmt*exp(-max(minD, 0.)*10.)*(minD < 1e2 ? 1. : 0.));   // faint halo
+    // eclipse corona: ivory against the silhouette, gold beyond, a faint ember at the far edge (angel / demon)
+    float cd = max(minD, 0.);
+    vec3 cor = mix(vec3(1., .97, .88), glow, smoothstep(0., .12, cd));
+    cor = mix(cor, vec3(.45, .09, .05), smoothstep(.12, .42, cd)*AURA*.75);
+    float flick = .93 + .07*sin(T*3.1)*sin(T*1.7);
+    float k = exp(-cd*mix(16., 7., AURA))*(minD < 1e2 ? 1. : 0.);
+    col = mix(col, cor, clamp(k*(.2 + .8*AURA)*flick*mix(.55, .9, uDark), 0., 1.));
     col = mix(col, vec3(.015), (1. - smoothstep(0., pw, minD))*.85);                                      // silhouette AA
   } else {
     vec3 p = ro + rd*t, n = calcNormal(p), v = -rd;
     float liquid = W[0]*.5 + W[1]*.3 + W[2]*.2 + W[3]*1. + W[4]*.25;          // reflective liquid skin
     n = normalize(n + .018*liquid*vec3(sin(p.y*22. + T*1.8), sin(p.z*22. - T*1.5), sin(p.x*22. + T*1.2)));
-    n = normalize(n + .22*ferroDots(p, 64.));                                              // ferro grain
+    n = normalize(n + .10*ferroDots(p, 96.));                                              // ferro grain (fine)
     vec3 r = reflect(rd, n);
     float fres = pow(1. - max(dot(n, v), 0.), 4.);
     col = vec3(.012, .012, .015) + env(r)*(.045 + .88*fres);
     vec3 Ld = normalize(vec3(-.5, .7, .6));
     col += pow(max(dot(r, Ld), 0.), 220.)*1.4;
-    col += pow(max(dot(r, Ld), 0.), 900.)*2.2*glow;                                        // grain glints
+    col += pow(max(dot(r, Ld), 0.), 900.)*1.2*mix(vec3(1.), glow, .5);                     // grain glints
     col += W[1]*pow(max(sin(r.y*16. + T*7.), 0.), 30.)*.25;                                // faint platinum scan
     float pulse = W[0]*(.7 + .3*sin(T*1.3)) + W[1]*(.75 + .25*sin(T*5.)) + W[2]*(.9 + .1*sin(T*9.))
                 + W[3]*(.5 + .5*exp(-fract(T*.5)*3.)) + W[4];
-    float edge = exp(-m.y*45.);
-    col += glow*edge*pulse*.85*uGlowAmt;                                                   // light lives ONLY on edges
-    col += glow*m.z*1.1*uGlowAmt;                                                          // …and on the boost vertices
-    col += mix(vec3(1.), glow, .5)*fres*mix(.10, .55, uDark);                              // rim: visible on dark UIs
+    float edge = exp(-m.y*110.);
+    col += mix(vec3(1., .96, .86), glow, .45)*edge*pulse*.75*uGlowAmt;                    // thin ivory-gold seams
+    col += mix(vec3(.5, .1, .05), glow, .6)*m.z*.9*uGlowAmt;                              // vertices: small embers
+    col += glow*AURA*.05*pow(max(dot(n, v), 0.), 3.)*(.6 + .4*sin(T*2.));                  // warmth breathing through the black
+    col += mix(vec3(1.), glow, .4)*fres*mix(.10, .5, uDark);                               // rim: visible on dark UIs
   }
   float border = max(abs(uv.x)*R/(res.x*.5), abs(uv.y)*R/(res.y*.5));
   col = mix(col, uBg, smoothstep(.86, .99, border));                                      // fade into the page, no cuts
