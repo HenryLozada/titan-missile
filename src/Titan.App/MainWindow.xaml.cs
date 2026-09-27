@@ -36,6 +36,7 @@ public sealed partial class MainWindow : Window
     private readonly AppSettings _settings = AppData.LoadSettings();
     private readonly DispatcherQueueTimer _liveTimer;
     private FrameMonitor? _monitor;
+    private Overlay? _overlay;
     private GameSession? _session;
     private readonly GamepadInput _pad = new();
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -75,6 +76,16 @@ public sealed partial class MainWindow : Window
         if (_host.RecoverIfNeeded() is { } recovered) Home.AnnounceRecovery(recovered);
         Home.Level = _settings.Level;
         Home.LevelChanged += l => { _settings.Level = l; AppData.Save(_settings); };
+        Tweaks.BindSettings(_settings);
+        Tweaks.OverlaySettingsChanged += () =>
+        {
+            AppData.Save(_settings);
+            if (_overlay is { } o)
+            {
+                if (_settings.Overlay) { o.Corner = _settings.OverlayCorner; }
+                else { _overlay.Dispose(); _overlay = null; }
+            }
+        };
         _host.GuardToggled += on => { _settings.Guardian = on; AppData.Save(_settings); };
         if (_host.IsElevated && _settings.Guardian) _host.SetGuard(true);
 
@@ -341,6 +352,11 @@ public sealed partial class MainWindow : Window
         {
             _monitor = new FrameMonitor(_games.IsGameProcess);
             try { _monitor.Start(); } catch { _monitor = null; }
+            if (_monitor is not null && _settings.Overlay)
+            {
+                _overlay = new Overlay(DispatcherQueue, () => _monitor?.LiveStats() ?? (0, 0)) { Corner = _settings.OverlayCorner };
+                try { _overlay.Show(); } catch { _overlay = null; }
+            }
         }
         if (boost)
         {
@@ -359,6 +375,8 @@ public sealed partial class MainWindow : Window
     {
         if (_session is not { } s) return;
         _session = null;
+        _overlay?.Dispose();
+        _overlay = null;
         var stats = _monitor?.Stop();
         _monitor = null;
         if (stats is not null && stats.Frames > 0)
@@ -379,6 +397,7 @@ public sealed partial class MainWindow : Window
     private void OnClosed(object sender, WindowEventArgs args)
     {
         CompositionTarget.Rendering -= OnFrame;
+        _overlay?.Dispose();
         _monitor?.Dispose();
         _games.Dispose();
         _sound.Dispose();

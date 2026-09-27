@@ -16,6 +16,9 @@ public sealed record AppSettings
     public Titan.Engine.Memory.BoostLevel Level { get; set; } = Titan.Engine.Memory.BoostLevel.Max;
     /// <summary>Idle standby guardian (outside games). On by default: that's the "keeps cleaning" promise.</summary>
     public bool Guardian { get; set; } = true;
+    /// <summary>In-game FPS counter drawn over the game.</summary>
+    public bool Overlay { get; set; } = true;
+    public OverlayCorner OverlayCorner { get; set; } = OverlayCorner.TopLeft;
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true, UseStringEnumConverter = true)]

@@ -17,10 +17,38 @@ public sealed partial class TweaksView : UserControl
     public SoundEngine? Sound { get; set; }
     public event Action? Changed;
 
+    private AppSettings? _settings;
+    private bool _syncing;
+    /// <summary>Raised when the FPS overlay preference changes, so the window can persist it and re-place a live overlay.</summary>
+    public event Action? OverlaySettingsChanged;
+
     public TweaksView()
     {
         InitializeComponent();
         Loaded += (_, _) => _surface ??= new ShaderSurface<EntityParams>(CubePanel, "Entity.hlsl", .9f);
+    }
+
+    public void BindSettings(AppSettings settings)
+    {
+        _settings = settings;
+        _syncing = true;
+        OverlayToggle.IsChecked = settings.Overlay;
+        CornerBox.SelectedIndex = (int)settings.OverlayCorner;
+        _syncing = false;
+    }
+
+    private void Overlay_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncing || _settings is null) return;
+        _settings.Overlay = OverlayToggle.IsChecked == true;
+        OverlaySettingsChanged?.Invoke();
+    }
+
+    private void Corner_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncing || _settings is null || CornerBox.SelectedIndex < 0) return;
+        _settings.OverlayCorner = (OverlayCorner)CornerBox.SelectedIndex;
+        OverlaySettingsChanged?.Invoke();
     }
 
     public void Attach(EngineHost host)

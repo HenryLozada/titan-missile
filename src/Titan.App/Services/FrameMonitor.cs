@@ -59,15 +59,33 @@ public sealed class FrameMonitor : IDisposable
     }
 
     /// <summary>Live FPS over the last ~second of the busiest process (for the overlay line).</summary>
-    public double LiveFps()
+    public double LiveFps() => LiveStats().Fps;
+
+    /// <summary>For the overlay: FPS over the last ~1 s and the 1% low over the last ~5 s of the busiest process.</summary>
+    public (double Fps, double Low1) LiveStats()
     {
         lock (_gate)
         {
             var times = _byPid.Values.OrderByDescending(v => v.Times.Count).FirstOrDefault().Times;
-            if (times is null || times.Count == 0) return 0;
+            if (times is null || times.Count == 0) return (0, 0);
+
             double sum = 0; int n = 0;
             for (int i = times.Count - 1; i >= 0 && sum < 1000; i--) { sum += times[i]; n++; }
-            return sum > 0 ? n * 1000 / sum : 0;
+            double fps = sum > 0 ? n * 1000 / sum : 0;
+
+            // 1% low over the recent window = 99th-percentile frametime of the last ~5 s.
+            double window = 0; int from = times.Count;
+            while (from > 0 && window < 5000) { window += times[from - 1]; from--; }
+            var recent = new float[times.Count - from];
+            times.CopyTo(from, recent, 0, recent.Length);
+            double low1 = fps;
+            if (recent.Length >= 10)
+            {
+                Array.Sort(recent);
+                float p99 = recent[(int)Math.Min(recent.Length - 1, Math.Ceiling(recent.Length * .99) - 1)];
+                if (p99 > 0) low1 = 1000 / p99;
+            }
+            return (fps, low1);
         }
     }
 
