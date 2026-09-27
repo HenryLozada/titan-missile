@@ -52,12 +52,17 @@ public sealed class GameService : IDisposable
     private readonly DispatcherQueueTimer _watch;
     private readonly string _path = Path.Combine(AppData.Dir, "games.json");
     private readonly Dictionary<int, string?> _paths = [];
+    private readonly CoverService _covers = new();
+    private CancellationTokenSource? _coverCts;
     private LibraryState _state;
     private bool _polling;
     private string? _pendingBoost;          // launched from TITAN: boost it even if AUTO is off
     private string? _pendingMeasure;        // "measure without boost" armed for this game
 
-    public IReadOnlyList<GameEntry> Games => _state.Games.Where(g => !_state.Hidden.Contains(g.Id)).ToList();
+    public IReadOnlyList<GameEntry> Games => _state.Games
+        .Where(g => !_state.Hidden.Contains(g.Id))
+        .Select(g => g.CoverPath is null && _covers.Local(g) is { } c ? g with { CoverPath = c } : g)
+        .ToList();
     public DateTimeOffset? ScannedAt => _state.ScannedAt;
     public bool Scanning { get; private set; }
 
@@ -80,6 +85,17 @@ public sealed class GameService : IDisposable
         _watch.Tick += (_, _) => Poll();
         _watch.Start();
         if (_state.ScannedAt is null) _ = RescanAsync();
+        else StartCovers();
+    }
+
+    /// <summary>Background pass that downloads official Steam box art for any game still without a cover.</summary>
+    private void StartCovers()
+    {
+        _coverCts?.Cancel();
+        _coverCts = new CancellationTokenSource();
+        var ct = _coverCts.Token;
+        var snapshot = Games;
+        _ = _covers.FetchMissingAsync(snapshot, (_, _) => _ui.TryEnqueue(() => LibraryChanged?.Invoke()), ct);
     }
 
     public async Task RescanAsync()
@@ -96,6 +112,7 @@ public sealed class GameService : IDisposable
         Save();
         Scanning = false;
         LibraryChanged?.Invoke();
+        StartCovers();
     }
 
     public void SetAuto(GameEntry game, bool on)
@@ -205,5 +222,5 @@ public sealed class GameService : IDisposable
         File.WriteAllText(_path, JsonSerializer.Serialize(_state, AppJson.Default.LibraryState));
     }
 
-    public void Dispose() => _watch.Stop();
+    public void Dispose() { _watch.Stop(); _coverCts?.Cancel(); }
 }
