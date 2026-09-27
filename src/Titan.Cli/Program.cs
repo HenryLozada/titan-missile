@@ -1,3 +1,4 @@
+using Titan.Engine.Games;
 using Titan.Engine.Memory;
 using Titan.Engine.Native;
 using Titan.Engine.Processes;
@@ -26,6 +27,7 @@ try
         "boost" => RequireAdmin() ?? await Boost(),
         "restore" => RequireAdmin() ?? Restore(),
         "guard" => RequireAdmin() ?? await Guard(),
+        "games" => Games(),
         _ => Help(),
     };
 }
@@ -57,7 +59,21 @@ int Help()
                                      --no-power --no-services --no-freeze --no-throttle --no-mmcss --no-purge
       titan restore                Deshace la sesión abierta (también la que dejó un cierre inesperado)
       titan guard                  Guardián de Standby estilo ISLC hasta ENTER (admin)
+      titan games                  Juegos instalados en todas las unidades (launchers + locales)
     """);
+    return 0;
+}
+
+int Games()
+{
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    var games = GameLibrary.Scan(new SyncProgress<string>(m => Ui.Dim("  · " + m)));
+    foreach (var g in games.GroupBy(g => g.Source).OrderBy(g => g.Key))
+    {
+        Ui.Title($"{g.Key} ({g.Count()})");
+        foreach (var e in g) Ui.Row(e.Name.Length > 26 ? e.Name[..25] + "…" : e.Name, $"{e.InstallDir}  →  {(e.Exe is null ? "?" : Path.GetFileName(e.Exe))}");
+    }
+    Ui.Dim($"\n{games.Count} juegos en {sw.Elapsed.TotalSeconds:0.0} s");
     return 0;
 }
 

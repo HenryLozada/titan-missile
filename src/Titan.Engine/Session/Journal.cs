@@ -145,7 +145,7 @@ public sealed class Journal
     /// The journal drives privileged undo actions, so only SYSTEM and Administrators may write it.
     /// (%ProgramData% lets normal users create files by default.)
     /// </summary>
-    private static void EnsureSecureDirectory(string dir)
+    public static void EnsureSecureDirectory(string dir)
     {
         var sec = new DirectorySecurity();
         sec.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);

@@ -64,6 +64,16 @@ public static unsafe class ProcessOps
         }
     }
 
+    /// <summary>Full path of the process image, or null if it can't be opened (protected / exited).</summary>
+    public static string? ImagePath(int pid)
+    {
+        using var h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (h.IsInvalid) return null;
+        char* buf = stackalloc char[1024];
+        uint size = 1024;
+        return QueryFullProcessImageName(h, 0, buf, ref size) ? new string(buf, 0, (int)size) : null;
+    }
+
     /// <summary>True only if <paramref name="key"/> still refers to the same live process.</summary>
     public static bool IsAlive(ProcessKey key) => TryGetKey(key.Pid, out var now) && now == key;
 
