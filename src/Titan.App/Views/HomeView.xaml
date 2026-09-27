@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Titan.App.Views.HomeView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="380" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="300" />
+        </Grid.ColumnDefinitions>
+
+        <!-- What the entity is doing and saying -->
+        <Grid Grid.Column="0" Padding="48,52,0,48">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Rectangle Width="7" Height="7" Fill="{StaticResource Gold}" VerticalAlignment="Center" />
+                <TextBlock x:Name="Kicker" Style="{StaticResource Label}" />
+            </StackPanel>
+            <TextBlock x:Name="Headline" Grid.Row="1" Style="{StaticResource Headline}" FontSize="50" LineHeight="52" Margin="0,22,0,0" />
+            <TextBlock x:Name="Voice" Grid.Row="2" Style="{StaticResource Body}" MaxWidth="300" HorizontalAlignment="Left" Margin="0,22,0,0" />
+            <StackPanel Grid.Row="4" Spacing="6">
+                <TextBlock x:Name="PlanLine" Style="{StaticResource Label}" FontSize="10" CharacterSpacing="80" />
+                <TextBlock x:Name="SessionLine" Style="{StaticResource Label}" FontSize="10" CharacterSpacing="80" />
+                <TextBlock x:Name="SolidLine" Style="{StaticResource Label}" FontSize="10" CharacterSpacing="80" />
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="CLASIF · " Style="{StaticResource Label}" FontSize="10" CharacterSpacing="80" />
+                    <Border Background="{StaticResource Ink}" Padding="2,0">
+                        <TextBlock Text="NIVEL-3-OMEGA" Style="{StaticResource Label}" FontSize="10" Foreground="{StaticResource Ink}" />
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- The entity -->
+        <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
+            <Button x:Name="EntityButton" Style="{StaticResource Bare}" Click="Entity_Click" AutomationProperties.Name="Activar BOOST">
+                <SwapChainPanel x:Name="EntityPanel" Width="540" Height="540" />
+            </Button>
+            <TextBlock x:Name="Hint" Style="{StaticResource Label}" Foreground="{StaticResource Ink}" FontSize="10" CharacterSpacing="300" HorizontalAlignment="Center" />
+            <StackPanel x:Name="Segments" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,6,0,0" />
+        </StackPanel>
+
+        <!-- Live readouts -->
+        <StackPanel Grid.Column="2" Padding="0,44,48,56" VerticalAlignment="Center" Spacing="20">
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="0,0,0,16">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="RAM LIBRE REAL" Style="{StaticResource Label}" />
+                    <TextBlock x:Name="FreeValue" Style="{StaticResource Figure}" />
+                    <TextBlock x:Name="FreeNote" Style="{StaticResource Label}" FontSize="11" CharacterSpacing="0" />
+                </StackPanel>
+            </Border>
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="0,0,0,16">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="CACHÉ STANDBY" Style="{StaticResource Label}" />
+                    <TextBlock x:Name="StandbyValue" Style="{StaticResource Figure}" />
+                    <TextBlock x:Name="StandbyNote" Style="{StaticResource Label}" FontSize="11" CharacterSpacing="0" />
+                </StackPanel>
+            </Border>
+            <Border BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1" Padding="0,0,0,16">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="SEGUNDO PLANO" Style="{StaticResource Label}" />
+                    <TextBlock x:Name="BgValue" Style="{StaticResource Figure}" />
+                    <TextBlock x:Name="BgNote" Style="{StaticResource Label}" FontSize="11" CharacterSpacing="0" />
+                </StackPanel>
+            </Border>
+            <Button x:Name="CleanButton" Style="{StaticResource Pill}" Content="LIMPIAR MEMORIA" HorizontalAlignment="Stretch" Click="Clean_Click" />
+        </StackPanel>
+    </Grid>
+</UserControl>

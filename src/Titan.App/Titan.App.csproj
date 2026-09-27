@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <RootNamespace>Titan.App</RootNamespace>
+    <AssemblyName>TITAN</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Shaders\*.hlsl" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Titan.Engine\Titan.Engine.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2705" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+  </ItemGroup>
+</Project>

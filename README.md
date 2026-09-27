@@ -22,3 +22,12 @@ titan boost --game cs2.exe [--hold]
 titan restore
 titan guard
 ```
+
+## App (WinUI 3)
+`src/Titan.App` — la entidad renderizada en Direct3D 11 (shaders en `src/Titan.App/Shaders`), motor integrado,
+modo Xbox (Windows.Gaming.Input, vibración en gatillos). Al abrirse pide permisos de administrador (UAC);
+si se rechazan, funciona en modo solo lectura.
+```bash
+dotnet build src/Titan.App
+```
+Ejecutable: `src/Titan.App/bin/Debug/net10.0-windows10.0.22621.0/win-x64/TITAN.exe` (`--no-elevate` para modo solo lectura).
